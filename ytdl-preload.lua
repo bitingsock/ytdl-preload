@@ -5,6 +5,7 @@
 -- # at least on Windows, do not escape '\' in temp, just us a single one for each divider
 
 -- #temp=R:\ytdltest
+-- #subLangs = "en",
 -- #ytdl_opt1=-r 50k
 -- #ytdl_opt2=-N 5
 -- #ytdl_opt#=etc
@@ -18,6 +19,7 @@ local utils = require 'mp.utils'
 local options = require 'mp.options'
 local opts = {
 	temp = "R:\\ytdl",
+	subLangs = "en",
 	ytdl_opt1 = "",
 	ytdl_opt2 = "",
 	ytdl_opt3 = "",
@@ -265,7 +267,7 @@ local function DL()
 			listenID = tostring(os.time())
 			local args = { ytdl, "--dump-single-json", "--no-simulate", "--skip-download",
 				restrictFilenames,
-				"--no-playlist", "--sub-lang", "en", "--write-sub", "--no-part", "-o",
+				"--no-playlist", "--sub-langs", opts.subLangs, "--write-sub", "--no-part", "-o",
 				cachePath .. "/" .. listenID .. "-%(title)s-%(id)s.%(ext)s", nextFile }
 			args = addOPTS(args)
 			-- print(dump(args))

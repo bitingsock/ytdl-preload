@@ -39,6 +39,7 @@ for k, v in pairs(opts) do
 end
 local cachePath = opts.temp
 
+local restrictFilenames = "--no-restrict-filenames"
 local chapter_list = {}
 local json = ""
 local filesToDelete = {}
@@ -219,7 +220,7 @@ local function download_files(id, success, result, error)
 	json = utils.parse_json(result.stdout)
 	-- print(dump(json))
 	if json.requested_downloads[1].requested_formats ~= nil then
-		local args = { ytdl, "--no-continue", "-q", "-f", fAudio, "--restrict-filenames", "--no-playlist", "--no-part",
+		local args = { ytdl, "--no-continue", "-q", "-f", fAudio,restrictFilenames, "--no-playlist", "--no-part",
 			"-o", cachePath .. "/" .. id .. "-%(title)s-%(id)s.mka", "--load-info-json", jfile }
 		args = addOPTS(args)
 		AudioDownloadHandle = mp.command_native_async({
@@ -234,7 +235,7 @@ local function download_files(id, success, result, error)
 		fVideo = fVideo:gsub("bv", "best")
 	end
 
-	local args = { ytdl, "--no-continue", "-f", fVideo .. '/best', "--restrict-filenames", "--no-playlist",
+	local args = { ytdl, "--no-continue", "-f", fVideo .. '/best',restrictFilenames, "--no-playlist",
 		"--no-part", "-o", cachePath .. "/" .. id .. "-%(title)s-%(id)s.mkv", "--load-info-json", jfile }
 	args = addOPTS(args)
 	VideoDownloadHandle = mp.command_native_async({
@@ -263,7 +264,7 @@ local function DL()
 			-- print("start"..nextFile)
 			listenID = tostring(os.time())
 			local args = { ytdl, "--dump-single-json", "--no-simulate", "--skip-download",
-				"--restrict-filenames",
+				restrictFilenames,
 				"--no-playlist", "--sub-lang", "en", "--write-sub", "--no-part", "-o",
 				cachePath .. "/" .. listenID .. "-%(title)s-%(id)s.%(ext)s", nextFile }
 			args = addOPTS(args)
@@ -383,6 +384,10 @@ for _, path in pairs(paths_to_search) do
 	end
 end
 --end ytdl_hook
+
+if platform_is_windows then
+	restrictFilenames = "--restrict-filenames"
+end
 
 mp.register_event("start-file", DL)
 mp.register_event("shutdown", clearCache)

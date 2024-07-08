@@ -31,6 +31,7 @@ local opts = {
 	ytdl_opt9 = "",
 }
 options.read_options(opts, "ytdl_preload")
+-- print(opts.temp)
 local additionalOpts = {}
 for k, v in pairs(opts) do
 	if k:find("ytdl_opt%d") and v ~= "" then
@@ -250,10 +251,14 @@ end
 
 local function DL()
 	local index = tonumber(mp.get_property("playlist-pos"))
-	if mp.get_property("playlist/" .. index .. "/filename"):find("/videos$") and mp.get_property("playlist/" .. index + 1 .. "/filename"):find("/shorts$") then
+	if index == mp.get_property("playlist-count") - 1 then
+		index = -1
+	end
+	if index >= 0 and mp.get_property("playlist/" .. index .. "/filename"):find("/videos$") and mp.get_property("playlist/" .. index + 1 .. "/filename"):find("/shorts$") then
 		return
 	end
-	if tonumber(mp.get_property("playlist-pos-1")) > 0 and mp.get_property("playlist-pos-1") ~= mp.get_property("playlist-count") then
+	if tonumber(mp.get_property("playlist-pos-1")) > 0 then
+		-- print(index)
 		nextIndex = index + 1
 		local nextFile = mp.get_property("playlist/" .. nextIndex .. "/filename")
 		if nextFile and caught and nextFile:find("://", 0, false) then

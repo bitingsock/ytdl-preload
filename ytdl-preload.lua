@@ -251,7 +251,7 @@ end
 
 local function DL()
 	local index = tonumber(mp.get_property("playlist-pos"))
-	if index == mp.get_property("playlist-count") - 1 then
+	if tonumber(mp.get_property("playlist-count")) > 1 and index == tonumber(mp.get_property("playlist-count")) - 1 then
 		index = -1
 	end
 	if index >= 0 and mp.get_property("playlist/" .. index .. "/filename"):find("/videos$") and mp.get_property("playlist/" .. index + 1 .. "/filename"):find("/shorts$") then

@@ -213,6 +213,14 @@ local VideoDownloadHandle = {}
 local JsonDownloadHandle = {}
 local function download_files(id, success, result, error)
 	if result.killed_by_us then
+		mp.unregister_event(listener)
+		return
+	end
+	if result.stderr ~= '' then
+		print(result.stderr)
+		mp.unregister_event(listener)
+		print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
+		mp.commandv("playlist-remove", nextIndex);
 		return
 	end
 	local jfile = cachePath .. "/" .. id .. ".json"

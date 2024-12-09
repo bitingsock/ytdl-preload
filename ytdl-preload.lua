@@ -220,6 +220,7 @@ local function download_files(id, success, result, error)
 		print(result.stderr)
 		mp.unregister_event(listener)
 		print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
+		caught = true
 		mp.commandv("playlist-remove", nextIndex);
 		return
 	end

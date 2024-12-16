@@ -216,7 +216,7 @@ local function download_files(id, success, result, error)
 		mp.unregister_event(listener)
 		return
 	end
-	if result.stderr ~= '' then
+	if result.stderr ~= '' and not result.stderr:find("paths is ignored") then
 		print(result.stderr)
 		mp.unregister_event(listener)
 		print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")

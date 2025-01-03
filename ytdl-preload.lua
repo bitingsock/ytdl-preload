@@ -20,6 +20,7 @@ local options = require 'mp.options'
 local opts = {
 	temp = "R:\\ytdl",
 	subLangs = "en",
+	format = mp.get_property("ytdl-format"),
 	ytdl_opt1 = "",
 	ytdl_opt2 = "",
 	ytdl_opt3 = "",
@@ -274,7 +275,7 @@ local function DL()
 			caught = false
 			mp.enable_messages("info")
 			mp.register_event("log-message", listener)
-			local ytFormat = mp.get_property("ytdl-format")
+			local ytFormat = opts.format
 			fVideo = string.match(ytFormat, '(.+)%+.+//?') or 'bestvideo'
 			fAudio = string.match(ytFormat, '.+%+(.+)//?') or 'bestaudio'
 			-- print("start"..nextFile)

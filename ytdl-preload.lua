@@ -268,7 +268,6 @@ local function DL()
 		return
 	end
 	if tonumber(mp.get_property("playlist-pos-1")) > 0 then
-		-- print(index)
 		nextIndex = index + 1
 		local nextFile = mp.get_property("playlist/" .. nextIndex .. "/filename")
 		if nextFile and caught and nextFile:find("://", 0, false) then
@@ -276,9 +275,8 @@ local function DL()
 			mp.enable_messages("info")
 			mp.register_event("log-message", listener)
 			local ytFormat = opts.format
-			fVideo = string.match(ytFormat, '(.+)%+.+//?') or 'bestvideo'
-			fAudio = string.match(ytFormat, '.+%+(.+)//?') or 'bestaudio'
-			-- print("start"..nextFile)
+			fVideo = string.match(ytFormat, '([^/+]+)%+') or 'bestvideo'
+			fAudio = string.match(ytFormat, '%+([^/]+)') or 'bestaudio'
 			listenID = tostring(os.time())
 			local args = { ytdl, "--dump-single-json", "--no-simulate", "--skip-download",
 				restrictFilenames,

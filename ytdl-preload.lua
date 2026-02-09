@@ -14,9 +14,9 @@ local nextIndex
 local caught = true
 -- local pop = false
 local ytdl = "yt-dlp"
-local utils = require 'mp.utils'
+local utils = require("mp.utils")
 
-local options = require 'mp.options'
+local options = require("mp.options")
 local opts = {
 	temp = "R:\\ytdl",
 	subLangs = "en",
@@ -90,7 +90,9 @@ local function extract_chapters(data, video_length)
 			table.insert(ret, { time = time, title = line })
 		end
 	end
-	table.sort(ret, function(a, b) return a.time < b.time end)
+	table.sort(ret, function(a, b)
+		return a.time < b.time
+	end)
 	return ret
 end
 local function chapters()
@@ -99,7 +101,7 @@ local function chapters()
 			local chapter = json.chapters[i]
 			local title = chapter.title or ""
 			if title == "" then
-				title = string.format('Chapter %02d', i)
+				title = string.format("Chapter %02d", i)
 			end
 			table.insert(chapter_list, { time = chapter.start_time, title = title })
 		end
@@ -115,7 +117,7 @@ local function load_files(dtitle, destination, audio, wait)
 	if wait then
 		if exists(destination .. ".mka") then
 			print("---wait success: found mka---")
-			audio = "audio-file=" .. destination .. '.mka,'
+			audio = "audio-file=" .. destination .. ".mka,"
 		else
 			print("---could not find mka after wait, audio may be missing---")
 		end
@@ -127,11 +129,20 @@ local function load_files(dtitle, destination, audio, wait)
 	dtitle = dtitle:gsub("-" .. ("[%w_-]"):rep(11) .. "$", "")
 	dtitle = dtitle:gsub("^" .. ("%d"):rep(10) .. "%-", "")
 	if useNewLoadfile() then
-		mp.commandv("loadfile", destination .. ".mkv", "append", -1,
-			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no')
+		mp.commandv(
+			"loadfile",
+			destination .. ".mkv",
+			"append",
+			-1,
+			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no'
+		)
 	else
-		mp.commandv("loadfile", destination .. ".mkv", "append",
-			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no')                                                --,sub-file="..destination..".en.vtt") --in case they are not set up to autoload
+		mp.commandv(
+			"loadfile",
+			destination .. ".mkv",
+			"append",
+			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no'
+		) --,sub-file="..destination..".en.vtt") --in case they are not set up to autoload
 	end
 	mp.commandv("playlist_move", mp.get_property("playlist-count") - 1, nextIndex)
 	mp.commandv("playlist_remove", nextIndex + 1)
@@ -143,10 +154,10 @@ end
 local listenID = ""
 local function listener(event)
 	if not caught and event.prefix == mp.get_script_name() and string.find(event.text, listenID) then
-		local destination = string.match(event.text, "%[download%] Destination: (.+).mkv") or
-			string.match(event.text, "%[download%] (.+).mkv has already been downloaded")
+		local destination = string.match(event.text, "%[download%] Destination: (.+).mkv")
+			or string.match(event.text, "%[download%] (.+).mkv has already been downloaded")
 		-- if destination then print("---"..cachePath) end;
-		if destination and string.find(destination, string.gsub(cachePath, '~/', '')) then
+		if destination and string.find(destination, string.gsub(cachePath, "~/", "")) then
 			-- print(listenID)
 			mp.unregister_event(listener)
 			_, title = utils.split_path(destination)
@@ -155,7 +166,7 @@ local function listener(event)
 				load_files(title, destination, audio, false)
 			else
 				if exists(destination .. ".mka") then
-					audio = "audio-file=" .. destination .. '.mka,'
+					audio = "audio-file=" .. destination .. ".mka,"
 					load_files(title, destination, audio, false)
 				else
 					print("---expected mka but could not find it, waiting for 2 seconds---")
@@ -181,13 +192,15 @@ mp.add_hook("on_preloaded", 10, function()
 end)
 --end ytdl_hook
 function dump(o)
-	if type(o) == 'table' then
-		local s = '{ '
+	if type(o) == "table" then
+		local s = "{ "
 		for k, v in pairs(o) do
-			if type(k) ~= 'number' then k = '"' .. k .. '"' end
-			s = s .. '[' .. k .. '] = ' .. dump(v) .. ','
+			if type(k) ~= "number" then
+				k = '"' .. k .. '"'
+			end
+			s = s .. "[" .. k .. "] = " .. dump(v) .. ","
 		end
-		return s .. '} '
+		return s .. "} "
 	else
 		return tostring(o)
 	end
@@ -217,12 +230,12 @@ local function download_files(id, success, result, error)
 		mp.unregister_event(listener)
 		return
 	end
-	if result.stderr ~= '' and result.stderr:find("ERROR") then
+	if result.stderr ~= "" and result.stderr:find("ERROR") then
 		print(result.stderr)
 		mp.unregister_event(listener)
 		print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
 		caught = true
-		mp.commandv("playlist-remove", nextIndex);
+		mp.commandv("playlist-remove", nextIndex)
 		return
 	end
 	local jfile = cachePath .. "/" .. id .. ".json"
@@ -233,30 +246,51 @@ local function download_files(id, success, result, error)
 	json = utils.parse_json(result.stdout)
 	-- print(dump(json))
 	if json.requested_downloads[1].requested_formats ~= nil then
-		local args = { ytdl, "--no-continue", "-q", "-f", fAudio,restrictFilenames, "--no-playlist", "--no-part",
-			"-o", cachePath .. "/" .. id .. "-%(title)s-%(id)s.mka", "--load-info-json", jfile }
+		local args = {
+			ytdl,
+			"--no-continue",
+			"-q",
+			"-f",
+			fAudio,
+			restrictFilenames,
+			"--no-playlist",
+			"--no-part",
+			"-o",
+			cachePath .. "/" .. id .. "-%(title)s-%(id)s.mka",
+			"--load-info-json",
+			jfile,
+		}
 		args = addOPTS(args)
 		AudioDownloadHandle = mp.command_native_async({
 			name = "subprocess",
 			args = args,
-			playback_only = false
-		}, function()
-		end)
+			playback_only = false,
+		}, function() end)
 	else
 		fAudio = ""
 		fVideo = fVideo:gsub("bestvideo", "best")
 		fVideo = fVideo:gsub("bv", "best")
 	end
 
-	local args = { ytdl, "--no-continue", "-f", fVideo .. '/best',restrictFilenames, "--no-playlist",
-		"--no-part", "-o", cachePath .. "/" .. id .. "-%(title)s-%(id)s.mkv", "--load-info-json", jfile }
+	local args = {
+		ytdl,
+		"--no-continue",
+		"-f",
+		fVideo .. "/best",
+		restrictFilenames,
+		"--no-playlist",
+		"--no-part",
+		"-o",
+		cachePath .. "/" .. id .. "-%(title)s-%(id)s.mkv",
+		"--load-info-json",
+		jfile,
+	}
 	args = addOPTS(args)
 	VideoDownloadHandle = mp.command_native_async({
 		name = "subprocess",
 		args = args,
-		playback_only = false
-	}, function()
-	end)
+		playback_only = false,
+	}, function() end)
 end
 
 local function DL()
@@ -264,7 +298,11 @@ local function DL()
 	if tonumber(mp.get_property("playlist-count")) > 1 and index == tonumber(mp.get_property("playlist-count")) - 1 then
 		index = -1
 	end
-	if index >= 0 and mp.get_property("playlist/" .. index .. "/filename"):find("/videos$") and mp.get_property("playlist/" .. index + 1 .. "/filename"):find("/shorts$") then
+	if
+		index >= 0
+		and mp.get_property("playlist/" .. index .. "/filename"):find("/videos$")
+		and mp.get_property("playlist/" .. index + 1 .. "/filename"):find("/shorts$")
+	then
 		return
 	end
 	if tonumber(mp.get_property("playlist-pos-1")) > 0 then
@@ -275,13 +313,24 @@ local function DL()
 			mp.enable_messages("info")
 			mp.register_event("log-message", listener)
 			local ytFormat = opts.format
-			fVideo = string.match(ytFormat, '([^/+]+)%+') or 'bestvideo'
-			fAudio = string.match(ytFormat, '%+([^/]+)') or 'bestaudio'
+			fVideo = string.match(ytFormat, "([^/+]+)%+") or "bestvideo"
+			fAudio = string.match(ytFormat, "%+([^/]+)") or "bestaudio"
 			listenID = tostring(os.time())
-			local args = { ytdl, "--dump-single-json", "--no-simulate", "--skip-download",
+			local args = {
+				ytdl,
+				"--dump-single-json",
+				"--no-simulate",
+				"--skip-download",
 				restrictFilenames,
-				"--no-playlist", "--sub-langs", opts.subLangs, "--write-sub", "--no-part", "-o",
-				cachePath .. "/" .. listenID .. "-%(title)s-%(id)s.%(ext)s", nextFile }
+				"--no-playlist",
+				"--sub-langs",
+				opts.subLangs,
+				"--write-sub",
+				"--no-part",
+				"-o",
+				cachePath .. "/" .. listenID .. "-%(title)s-%(id)s.%(ext)s",
+				nextFile,
+			}
 			args = addOPTS(args)
 			-- print(dump(args))
 			table.insert(filesToDelete, listenID)
@@ -290,7 +339,7 @@ local function DL()
 				args = args,
 				capture_stdout = true,
 				capture_stderr = true,
-				playback_only = false
+				playback_only = false,
 			}, function(...)
 				download_files(listenID, ...)
 			end)
@@ -310,16 +359,18 @@ local function clearCache()
 	-- 	os.remove(v)
 	-- end
 	local ftd = io.open(cachePath .. "/temp.files", "a")
-	for k, v in pairs(filesToDelete) do
-		ftd:write(v .. "\n")
-		if package.config:sub(1, 1) ~= '/' then
-			os.execute('del /Q /F "' .. cachePath .. "\\" .. v .. '*"')
-		else
-			os.execute('rm -f ' .. cachePath .. "/" .. v .. "*")
+	if ftd then
+		for k, v in pairs(filesToDelete) do
+			ftd:write(v .. "\n")
+			if package.config:sub(1, 1) ~= "/" then
+				os.execute('del /Q /F "' .. cachePath .. "\\\\" .. v .. '*"')
+			else
+				os.execute("rm -f " .. cachePath .. "/" .. v .. "*")
+			end
 		end
+		ftd:close()
+		print("clear")
 	end
-	ftd:close()
-	print('clear')
 	mp.command("quit")
 	--end
 end
@@ -353,7 +404,7 @@ local o = {
 	ytdl_path = "",
 }
 local paths_to_search = { "yt-dlp", "yt-dlp_x86", "youtube-dl" }
---local options = require 'mp.options'
+
 options.read_options(o, "ytdl_hook")
 
 local separator = platform_is_windows and ";" or ":"
@@ -369,12 +420,12 @@ local function exec(args)
 		name = "subprocess",
 		args = args,
 		capture_stdout = true,
-		capture_stderr = true
+		capture_stderr = true,
 	})
 	return ret.status, ret.stdout, ret, ret.killed_by_us
 end
 
-local msg = require 'mp.msg'
+local msg = require("mp.msg")
 local command = {}
 for _, path in pairs(paths_to_search) do
 	-- search for youtube-dl in mpv's config dir
@@ -415,9 +466,9 @@ while ftd ~= nil do
 		break
 	end
 	-- print("DEL::"..line)
-	if package.config:sub(1, 1) ~= '/' then
+	if package.config:sub(1, 1) ~= "/" then
 		os.execute('del /Q /F "' .. cachePath .. "\\" .. line .. '*" >nul 2>nul')
 	else
-		os.execute('rm -f ' .. cachePath .. "/" .. line .. "* &> /dev/null")
+		os.execute("rm -f " .. cachePath .. "/" .. line .. "* &> /dev/null")
 	end
 end

@@ -10,15 +10,16 @@
 -- #ytdl_opt2=-N 5
 -- #ytdl_opt#=etc
 ----------------------
+local pathSep = package.config:sub(1, 1)
+local platform_is_windows = (pathSep == "\\")
 local nextIndex
 local caught = true
 -- local pop = false
 local ytdl = "yt-dlp"
 local utils = require("mp.utils")
-
 local options = require("mp.options")
 local opts = {
-	temp = "R:\\ytdl",
+	temp = platform_is_windows and os.getenv("TEMP") or "/tmp",
 	subLangs = "en",
 	format = mp.get_property("ytdl-format"),
 	ytdl_opt1 = "",
@@ -31,8 +32,13 @@ local opts = {
 	ytdl_opt8 = "",
 	ytdl_opt9 = "",
 }
+if opts.temp == nil then
+	opts.temp = "R:\\ytdl"
+else 
+	opts.temp = opts.temp..pathSep.."ytdl"
+end
 options.read_options(opts, "ytdl_preload")
--- print(opts.temp)
+
 local additionalOpts = {}
 for k, v in pairs(opts) do
 	if k:find("ytdl_opt%d") and v ~= "" then
@@ -394,7 +400,7 @@ mp.observe_property("playlist-count", "number", function()
 end)
 
 --from ytdl_hook
-local platform_is_windows = (package.config:sub(1, 1) == "\\")
+local platform_is_windows = (pathSep == "\\")
 local o = {
 	exclude = "",
 	try_ytdl_first = false,
@@ -466,7 +472,7 @@ while ftd ~= nil do
 		break
 	end
 	-- print("DEL::"..line)
-	if package.config:sub(1, 1) ~= "/" then
+	if pathSep ~= "/" then
 		os.execute('del /Q /F "' .. cachePath .. "\\" .. line .. '*" >nul 2>nul')
 	else
 		os.execute("rm -f " .. cachePath .. "/" .. line .. "* &> /dev/null")

@@ -32,7 +32,7 @@ local opts = {
 	ytdl_opt9 = "",
 }
 if opts.temp == nil then
-	otps.temp = "R:\\ytdl"
+	opts.temp = "R:\\ytdl"
 else 
 	opts.temp = opts.temp..pathSep.."ytdl"
 end

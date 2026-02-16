@@ -211,6 +211,23 @@ function dump(o)
 		return tostring(o)
 	end
 end
+function random_hash(file)
+	local hash = ""
+	for c in string.gmatch(file, ".") do
+		hash = hash..string.byte(c)
+	end
+	math.randomseed(hash)
+	hash = ""
+	hash_chars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E",
+				"F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
+				"U", "V", "W", "X", "Y", "Z"}
+
+	for i = 1, 24 do
+		local index = math.random(1, #hash_chars)
+		hash = hash .. hash_chars[index]
+	end
+	return hash
+end
 
 local function addOPTS(old)
 	for k, v in pairs(additionalOpts) do
@@ -321,7 +338,7 @@ local function DL()
 			local ytFormat = opts.format
 			fVideo = string.match(ytFormat, "([^/+]+)%+") or "bestvideo"
 			fAudio = string.match(ytFormat, "%+([^/]+)") or "bestaudio"
-			listenID = tostring(os.time())
+			listenID = random_hash(nextFile)
 			local args = {
 				ytdl,
 				"--dump-single-json",
@@ -400,7 +417,7 @@ mp.observe_property("playlist-count", "number", function()
 end)
 
 --from ytdl_hook
-local platform_is_windows = (pathSep == "\\")
+--local platform_is_windows = (pathSep == "\\")
 local o = {
 	exclude = "",
 	try_ytdl_first = false,

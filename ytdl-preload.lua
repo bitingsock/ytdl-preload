@@ -11,6 +11,7 @@
 -- #ytdl_opt#=etc
 ----------------------
 local pathSep = package.config:sub(1, 1)
+local platform_is_windows = (pathSep == "\\")
 local nextIndex
 local caught = true
 -- local pop = false
@@ -18,7 +19,7 @@ local ytdl = "yt-dlp"
 local utils = require("mp.utils")
 local options = require("mp.options")
 local opts = {
-	temp = os.getenv("TEMP"),
+	temp = os.getenv((platform_is_windows and "TEMP" or "TMPDIR"),
 	subLangs = "en",
 	format = mp.get_property("ytdl-format"),
 	ytdl_opt1 = "",

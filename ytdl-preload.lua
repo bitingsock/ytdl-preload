@@ -133,7 +133,7 @@ local function load_files(dtitle, destination, audio, wait)
 	-- end
 	-- table.insert(filesToDelete, destination .. ".mkv")
 	dtitle = dtitle:gsub("-" .. ("[%w_-]"):rep(11) .. "$", "")
-	dtitle = dtitle:gsub("^" .. ("%d"):rep(10) .. "%-", "")
+	dtitle = dtitle:gsub("^" .. ("[%d%w]"):rep(24) .. "%-", "")
 	if useNewLoadfile() then
 		mp.commandv(
 			"loadfile",

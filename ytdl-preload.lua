@@ -14,7 +14,6 @@ local pathSep = package.config:sub(1, 1)
 local platform_is_windows = (pathSep == "\\")
 local nextIndex
 local caught = true
--- local pop = false
 local ytdl = "yt-dlp"
 local utils = require("mp.utils")
 local options = require("mp.options")
@@ -317,6 +316,11 @@ local function download_files(id, success, result, error)
 end
 
 local function DL()
+	local enabled = mp.get_opt("enable_ytdl_preload")
+	if enabled and enabled=="no" then
+		return
+	end
+
 	local index = tonumber(mp.get_property("playlist-pos"))
 	if tonumber(mp.get_property("playlist-count")) > 1 and index == tonumber(mp.get_property("playlist-count")) - 1 then
 		index = -1

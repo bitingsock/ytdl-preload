@@ -248,6 +248,14 @@ local AudioDownloadHandle = {}
 local VideoDownloadHandle = {}
 local JsonDownloadHandle = {}
 local function download_files(id, success, result, error)
+	local ytFormat = opts.format
+	if string.match(ytFormat, "([^/+]+)%+") then
+		fVideo = string.match(ytFormat, "([^/+]+)%+")
+		fAudio = string.match(ytFormat, "%+([^/]+)") or "bestaudio"
+	else 
+		fVideo = ytFormat
+	end
+
 	if result.killed_by_us then
 		mp.unregister_event(listener)
 		return
@@ -290,8 +298,6 @@ local function download_files(id, success, result, error)
 		}, function() end)
 	else
 		fAudio = ""
-		fVideo = fVideo:gsub("bestvideo", "best")
-		fVideo = fVideo:gsub("bv", "best")
 	end
 
 	local args = {
@@ -339,13 +345,12 @@ local function DL()
 			caught = false
 			mp.enable_messages("info")
 			mp.register_event("log-message", listener)
-			local ytFormat = opts.format
-			fVideo = string.match(ytFormat, "([^/+]+)%+") or "bestvideo"
-			fAudio = string.match(ytFormat, "%+([^/]+)") or "bestaudio"
 			listenID = random_hash(nextFile)
 			local args = {
 				ytdl,
 				"--dump-single-json",
+				"-f",
+				opts.format.."/bestvideo*+bestaudio/best",
 				"--no-simulate",
 				"--skip-download",
 				restrictFilenames,

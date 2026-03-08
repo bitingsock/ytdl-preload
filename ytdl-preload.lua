@@ -333,6 +333,9 @@ local function DL()
 	then
 		return
 	end
+
+	if mp.get_property("playlist/" .. index + 1 .. "/filename"):find("/playlist%?list=") then return end;
+
 	if tonumber(mp.get_property("playlist-pos-1")) > 0 then
 		nextIndex = index + 1
 		local nextFile = mp.get_property("playlist/" .. nextIndex .. "/filename")

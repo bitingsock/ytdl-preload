@@ -161,7 +161,6 @@ local function listener(event)
 	if not caught and event.prefix == mp.get_script_name() and string.find(event.text, listenID) then
 		local destination = string.match(event.text, "%[download%] Destination: (.+).mkv")
 			or string.match(event.text, "%[download%] (.+).mkv has already been downloaded")
-		-- if destination then print("---"..cachePath) end;
 		if destination and string.find(destination, string.gsub(cachePath, "~/", "")) then
 			-- print(listenID)
 			mp.unregister_event(listener)
@@ -250,12 +249,11 @@ local JsonDownloadHandle = {}
 local function download_files(id, success, result, error)
 
 	if result.killed_by_us then
-		mp.unregister_event(listener)
+		print("kill")
 		return
 	end
 	if result.stderr ~= "" and result.stderr:find("ERROR") then
 		print(result.stderr)
-		mp.unregister_event(listener)
 		print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
 		caught = true
 		mp.commandv("playlist-remove", nextIndex)
@@ -268,6 +266,10 @@ local function download_files(id, success, result, error)
 	jfileIO:close()
 	json = utils.parse_json(result.stdout)
 	-- print(dump(json))
+	if json._type == "playlist" then 
+		print("playlist detected. abort")
+		return
+	end
 	fVideo = json.format_id
 	if fVideo:find("+") then
 		fAudio = string.match(fVideo, "%+([^/]+)")
@@ -314,66 +316,59 @@ local function download_files(id, success, result, error)
 		args = args,
 		playback_only = false,
 	}, function() end)
+	mp.register_event("log-message", listener)
 end
 
 local function DL()
 	local enabled = mp.get_opt("enable_ytdl_preload")
-	if enabled and enabled=="no" then
-		return
-	end
 
 	local index = tonumber(mp.get_property("playlist-pos"))
 	if tonumber(mp.get_property("playlist-count")) > 1 and index == tonumber(mp.get_property("playlist-count")) - 1 then
 		index = -1
 	end
-	if
-		index >= 0
-		and mp.get_property("playlist/" .. index .. "/filename"):find("/videos$")
-		and mp.get_property("playlist/" .. index + 1 .. "/filename"):find("/shorts$")
+
+	if (enabled and enabled=="no") or
+		(tonumber(mp.get_property("playlist-count")) == 1) or
+		(not mp.get_property("playlist/" .. index + 1 .. "/filename"):find("://", 0, false))
 	then
 		return
-	end
+	end		
 
-	if mp.get_property("playlist/" .. index + 1 .. "/filename"):find("/playlist%?list=") then return end;
-
-	if tonumber(mp.get_property("playlist-pos-1")) > 0 then
-		nextIndex = index + 1
-		local nextFile = mp.get_property("playlist/" .. nextIndex .. "/filename")
-		if nextFile and caught and nextFile:find("://", 0, false) then
-			caught = false
-			mp.enable_messages("info")
-			mp.register_event("log-message", listener)
-			listenID = random_hash(nextFile)
-			local args = {
-				ytdl,
-				"--dump-single-json",
-				"-f",
-				opts.format,
-				"--no-simulate",
-				"--skip-download",
-				restrictFilenames,
-				"--no-playlist",
-				"--sub-langs",
-				opts.subLangs,
-				"--write-sub",
-				"--no-part",
-				"-o",
-				cachePath .. "/" .. listenID .. "-%(title)s-%(id)s.%(ext)s",
-				nextFile,
-			}
-			args = addOPTS(args)
-			-- print(dump(args))
-			table.insert(filesToDelete, listenID)
-			JsonDownloadHandle = mp.command_native_async({
-				name = "subprocess",
-				args = args,
-				capture_stdout = true,
-				capture_stderr = true,
-				playback_only = false,
-			}, function(...)
-				download_files(listenID, ...)
-			end)
-		end
+	nextIndex = index + 1
+	local nextFile = mp.get_property("playlist/" .. nextIndex .. "/filename")
+	if nextFile and caught then
+		caught = false
+		mp.enable_messages("info")
+		listenID = random_hash(nextFile)
+		local args = {
+			ytdl,
+			"--dump-single-json",
+			"-f",
+			opts.format,
+			"--no-simulate",
+			"--skip-download",
+			restrictFilenames,
+			"--no-playlist",
+			"--sub-langs",
+			opts.subLangs,
+			"--write-sub",
+			"--no-part",
+			"-o",
+			cachePath .. "/" .. listenID .. "-%(title)s-%(id)s.%(ext)s",
+			nextFile,
+		}
+		args = addOPTS(args)
+		-- print(dump(args))
+		table.insert(filesToDelete, listenID)
+		JsonDownloadHandle = mp.command_native_async({
+			name = "subprocess",
+			args = args,
+			capture_stdout = true,
+			capture_stderr = true,
+			playback_only = false,
+		}, function(...)
+			download_files(listenID, ...)
+		end)
 	end
 end
 

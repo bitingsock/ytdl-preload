@@ -248,6 +248,7 @@ local AudioDownloadHandle = {}
 local VideoDownloadHandle = {}
 local JsonDownloadHandle = {}
 local function download_files(id, success, result, error)
+
 	if result.killed_by_us then
 		mp.unregister_event(listener)
 		return
@@ -267,7 +268,11 @@ local function download_files(id, success, result, error)
 	jfileIO:close()
 	json = utils.parse_json(result.stdout)
 	-- print(dump(json))
-	if json.requested_downloads[1].requested_formats ~= nil then
+	fVideo = json.format_id
+	if fVideo:find("+") then
+		fAudio = string.match(fVideo, "%+([^/]+)")
+		fVideo = string.match(fVideo, "([^/+]+)%+")
+		
 		local args = {
 			ytdl,
 			"--no-continue",
@@ -288,17 +293,13 @@ local function download_files(id, success, result, error)
 			args = args,
 			playback_only = false,
 		}, function() end)
-	else
-		fAudio = ""
-		fVideo = fVideo:gsub("bestvideo", "best")
-		fVideo = fVideo:gsub("bv", "best")
 	end
 
 	local args = {
 		ytdl,
 		"--no-continue",
 		"-f",
-		fVideo .. "/best",
+		fVideo,
 		restrictFilenames,
 		"--no-playlist",
 		"--no-part",
@@ -339,13 +340,12 @@ local function DL()
 			caught = false
 			mp.enable_messages("info")
 			mp.register_event("log-message", listener)
-			local ytFormat = opts.format
-			fVideo = string.match(ytFormat, "([^/+]+)%+") or "bestvideo"
-			fAudio = string.match(ytFormat, "%+([^/]+)") or "bestaudio"
 			listenID = random_hash(nextFile)
 			local args = {
 				ytdl,
 				"--dump-single-json",
+				"-f",
+				opts.format,
 				"--no-simulate",
 				"--skip-download",
 				restrictFilenames,

@@ -248,13 +248,6 @@ local AudioDownloadHandle = {}
 local VideoDownloadHandle = {}
 local JsonDownloadHandle = {}
 local function download_files(id, success, result, error)
-	local ytFormat = opts.format
-	if string.match(ytFormat, "([^/+]+)%+") then
-		fVideo = string.match(ytFormat, "([^/+]+)%+")
-		fAudio = string.match(ytFormat, "%+([^/]+)") or "bestaudio"
-	else 
-		fVideo = ytFormat
-	end
 
 	if result.killed_by_us then
 		mp.unregister_event(listener)
@@ -275,7 +268,11 @@ local function download_files(id, success, result, error)
 	jfileIO:close()
 	json = utils.parse_json(result.stdout)
 	-- print(dump(json))
-	if json.requested_downloads[1].requested_formats ~= nil then
+	fVideo = json.format_id
+	if fVideo:find("+") then
+		fAudio = string.match(fVideo, "%+([^/]+)")
+		fVideo = string.match(fVideo, "([^/+]+)%+")
+		
 		local args = {
 			ytdl,
 			"--no-continue",
@@ -296,15 +293,13 @@ local function download_files(id, success, result, error)
 			args = args,
 			playback_only = false,
 		}, function() end)
-	else
-		fAudio = ""
 	end
 
 	local args = {
 		ytdl,
 		"--no-continue",
 		"-f",
-		fVideo .. "/best",
+		fVideo,
 		restrictFilenames,
 		"--no-playlist",
 		"--no-part",
@@ -350,7 +345,7 @@ local function DL()
 				ytdl,
 				"--dump-single-json",
 				"-f",
-				opts.format.."/bestvideo*+bestaudio/best",
+				opts.format,
 				"--no-simulate",
 				"--skip-download",
 				restrictFilenames,

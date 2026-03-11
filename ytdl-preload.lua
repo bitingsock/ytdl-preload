@@ -10,6 +10,20 @@
 -- #ytdl_opt2=-N 5
 -- #ytdl_opt#=etc
 ----------------------
+local function dump(o)
+	if type(o) == "table" then
+		local s = "{ "
+		for k, v in pairs(o) do
+			if type(k) ~= "number" then
+				k = '"' .. k .. '"'
+			end
+			s = s .. "[" .. k .. "] = " .. dump(v) .. ","
+		end
+		return s .. "} "
+	else
+		return tostring(o)
+	end
+end
 local pathSep = package.config:sub(1, 1)
 local platform_is_windows = (pathSep == "\\")
 local nextIndex
@@ -19,18 +33,11 @@ local utils = require("mp.utils")
 local options = require("mp.options")
 local opts = {
 	temp = platform_is_windows and os.getenv("TEMP") or "/tmp",
-	subLangs = "en",
 	format = mp.get_property("ytdl-format"),
-	ytdl_opt1 = "",
-	ytdl_opt2 = "",
-	ytdl_opt3 = "",
-	ytdl_opt4 = "",
-	ytdl_opt5 = "",
-	ytdl_opt6 = "",
-	ytdl_opt7 = "",
-	ytdl_opt8 = "",
-	ytdl_opt9 = "",
 }
+for i = 1,99 do
+	opts["ytdl_opt"..i]=""
+end
 if opts.temp == nil then
 	opts.temp = "R:\\ytdl"
 else 
@@ -40,7 +47,7 @@ options.read_options(opts, "ytdl_preload")
 
 local additionalOpts = {}
 for k, v in pairs(opts) do
-	if k:find("ytdl_opt%d") and v ~= "" then
+	if k:find("ytdl_opt%d+") and v ~= "" then
 		additionalOpts[k] = v
 		-- print("entry")
 		-- print(k .. v)
@@ -195,20 +202,7 @@ mp.add_hook("on_preloaded", 10, function()
 	end
 end)
 --end ytdl_hook
-function dump(o)
-	if type(o) == "table" then
-		local s = "{ "
-		for k, v in pairs(o) do
-			if type(k) ~= "number" then
-				k = '"' .. k .. '"'
-			end
-			s = s .. "[" .. k .. "] = " .. dump(v) .. ","
-		end
-		return s .. "} "
-	else
-		return tostring(o)
-	end
-end
+
 function random_hash(file)
 	local hash = ""
 	for c in string.gmatch(file, ".") do
@@ -227,13 +221,15 @@ function random_hash(file)
 	return hash
 end
 
-local function addOPTS(old)
+local function addOPTS(old, fdrop)
 	for k, v in pairs(additionalOpts) do
 		-- print(k)
 		if string.find(v, "%s") then
 			for l, w in string.gmatch(v, "([-%w]+) (.+)") do
-				table.insert(old, l)
-				table.insert(old, w)
+				if fdrop and (l~="-f" or l~="--format") then
+					table.insert(old, l)
+					table.insert(old, w)
+				end
 			end
 		else
 			table.insert(old, v)
@@ -289,7 +285,7 @@ local function download_files(id, success, result, error)
 			"--load-info-json",
 			jfile,
 		}
-		args = addOPTS(args)
+		args = addOPTS(args, true)
 		AudioDownloadHandle = mp.command_native_async({
 			name = "subprocess",
 			args = args,
@@ -310,7 +306,7 @@ local function download_files(id, success, result, error)
 		"--load-info-json",
 		jfile,
 	}
-	args = addOPTS(args)
+	args = addOPTS(args, true)
 	VideoDownloadHandle = mp.command_native_async({
 		name = "subprocess",
 		args = args,
@@ -343,14 +339,10 @@ local function DL()
 		local args = {
 			ytdl,
 			"--dump-single-json",
-			"-f",
-			opts.format,
 			"--no-simulate",
 			"--skip-download",
 			restrictFilenames,
 			"--no-playlist",
-			"--sub-langs",
-			opts.subLangs,
 			"--write-sub",
 			"--no-part",
 			"-o",

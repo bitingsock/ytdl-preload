@@ -197,9 +197,9 @@ end)
 --end ytdl_hook
 
 function random_hash(file)
-	local hash = ""
-	for c in string.gmatch(file, ".") do
-		hash = hash..string.byte(c)
+	local hash = 0
+	for c=1, #file do
+		hash = (hash*31+file:byte(c))%2^32
 	end
 	math.randomseed(hash)
 	hash = ""

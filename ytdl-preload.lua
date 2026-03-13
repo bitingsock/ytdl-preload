@@ -5,11 +5,24 @@
 -- # at least on Windows, do not escape '\' in temp, just us a single one for each divider
 
 -- #temp=R:\ytdltest
--- #subLangs = "en",
 -- #ytdl_opt1=-r 50k
 -- #ytdl_opt2=-N 5
 -- #ytdl_opt#=etc
 ----------------------
+local function dump(o)
+	if type(o) == "table" then
+		local s = "{ "
+		for k, v in pairs(o) do
+			if type(k) ~= "number" then
+				k = '"' .. k .. '"'
+			end
+			s = s .. "[" .. k .. "] = " .. dump(v) .. ","
+		end
+		return s .. "} "
+	else
+		return tostring(o)
+	end
+end
 local pathSep = package.config:sub(1, 1)
 local platform_is_windows = (pathSep == "\\")
 local nextIndex
@@ -19,18 +32,11 @@ local utils = require("mp.utils")
 local options = require("mp.options")
 local opts = {
 	temp = platform_is_windows and os.getenv("TEMP") or "/tmp",
-	subLangs = "en",
 	format = mp.get_property("ytdl-format"),
-	ytdl_opt1 = "",
-	ytdl_opt2 = "",
-	ytdl_opt3 = "",
-	ytdl_opt4 = "",
-	ytdl_opt5 = "",
-	ytdl_opt6 = "",
-	ytdl_opt7 = "",
-	ytdl_opt8 = "",
-	ytdl_opt9 = "",
 }
+for i = 1,99 do
+	opts["ytdl_opt"..i]=""
+end
 if opts.temp == nil then
 	opts.temp = "R:\\ytdl"
 else 
@@ -40,10 +46,8 @@ options.read_options(opts, "ytdl_preload")
 
 local additionalOpts = {}
 for k, v in pairs(opts) do
-	if k:find("ytdl_opt%d") and v ~= "" then
+	if k:find("ytdl_opt%d+") and v ~= "" then
 		additionalOpts[k] = v
-		-- print("entry")
-		-- print(k .. v)
 	end
 end
 local cachePath = opts.temp
@@ -73,6 +77,7 @@ local function useNewLoadfile()
 		end
 	end
 end
+
 --from ytdl_hook
 local function time_to_secs(time_string)
 	local ret
@@ -115,6 +120,7 @@ local function chapters()
 	end
 end
 --end ytdl_hook
+
 local title = ""
 local fVideo = ""
 local fAudio = ""
@@ -127,10 +133,6 @@ local function load_files(dtitle, destination, audio, wait)
 			print("---could not find mka after wait, audio may be missing---")
 		end
 	end
-	-- if audio ~= "" then
-	-- 	table.insert(filesToDelete, destination .. ".mka")
-	-- end
-	-- table.insert(filesToDelete, destination .. ".mkv")
 	dtitle = dtitle:gsub("-" .. ("[%w_-]"):rep(11) .. "$", "")
 	dtitle = dtitle:gsub("^" .. ("[%d%w]"):rep(24) .. "%-", "")
 	if useNewLoadfile() then
@@ -153,7 +155,6 @@ local function load_files(dtitle, destination, audio, wait)
 	mp.commandv("playlist_remove", nextIndex + 1)
 	caught = true
 	title = ""
-	-- pop = true
 end
 
 local listenID = ""
@@ -162,7 +163,6 @@ local function listener(event)
 		local destination = string.match(event.text, "%[download%] Destination: (.+).mkv")
 			or string.match(event.text, "%[download%] (.+).mkv has already been downloaded")
 		if destination and string.find(destination, string.gsub(cachePath, "~/", "")) then
-			-- print(listenID)
 			mp.unregister_event(listener)
 			_, title = utils.split_path(destination)
 			local audio = ""
@@ -195,24 +195,11 @@ mp.add_hook("on_preloaded", 10, function()
 	end
 end)
 --end ytdl_hook
-function dump(o)
-	if type(o) == "table" then
-		local s = "{ "
-		for k, v in pairs(o) do
-			if type(k) ~= "number" then
-				k = '"' .. k .. '"'
-			end
-			s = s .. "[" .. k .. "] = " .. dump(v) .. ","
-		end
-		return s .. "} "
-	else
-		return tostring(o)
-	end
-end
+
 function random_hash(file)
-	local hash = ""
-	for c in string.gmatch(file, ".") do
-		hash = hash..string.byte(c)
+	local hash = 0
+	for c=1, #file do
+		hash = (hash*31+file:byte(c))%2^32
 	end
 	math.randomseed(hash)
 	hash = ""
@@ -227,19 +214,19 @@ function random_hash(file)
 	return hash
 end
 
-local function addOPTS(old)
+local function addOPTS(old, fdrop)
 	for k, v in pairs(additionalOpts) do
-		-- print(k)
 		if string.find(v, "%s") then
 			for l, w in string.gmatch(v, "([-%w]+) (.+)") do
-				table.insert(old, l)
-				table.insert(old, w)
+				if fdrop==false or (fdrop==true and l~="-f" and l~="--format") then
+					table.insert(old, l)
+					table.insert(old, w)
+				end
 			end
 		else
 			table.insert(old, v)
 		end
 	end
-	-- print(dump(old))
 	return old
 end
 
@@ -265,7 +252,6 @@ local function download_files(id, success, result, error)
 	jfileIO:write(result.stdout)
 	jfileIO:close()
 	json = utils.parse_json(result.stdout)
-	-- print(dump(json))
 	if json._type == "playlist" then 
 		print("playlist detected. abort")
 		return
@@ -274,7 +260,6 @@ local function download_files(id, success, result, error)
 	if fVideo:find("+") then
 		fAudio = string.match(fVideo, "%+([^/]+)")
 		fVideo = string.match(fVideo, "([^/+]+)%+")
-		
 		local args = {
 			ytdl,
 			"--no-continue",
@@ -289,7 +274,7 @@ local function download_files(id, success, result, error)
 			"--load-info-json",
 			jfile,
 		}
-		args = addOPTS(args)
+		args = addOPTS(args, true)
 		AudioDownloadHandle = mp.command_native_async({
 			name = "subprocess",
 			args = args,
@@ -310,7 +295,8 @@ local function download_files(id, success, result, error)
 		"--load-info-json",
 		jfile,
 	}
-	args = addOPTS(args)
+	args = addOPTS(args, true)
+	print(dump(args))
 	VideoDownloadHandle = mp.command_native_async({
 		name = "subprocess",
 		args = args,
@@ -343,22 +329,27 @@ local function DL()
 		local args = {
 			ytdl,
 			"--dump-single-json",
-			"-f",
-			opts.format,
 			"--no-simulate",
 			"--skip-download",
 			restrictFilenames,
 			"--no-playlist",
-			"--sub-langs",
-			opts.subLangs,
 			"--write-sub",
 			"--no-part",
 			"-o",
 			cachePath .. "/" .. listenID .. "-%(title)s-%(id)s.%(ext)s",
 			nextFile,
 		}
-		args = addOPTS(args)
-		-- print(dump(args))
+		args = addOPTS(args, false)
+		local getFormat=true
+		for _,v in pairs(args) do
+			if v=="-f" or v=="--format" then
+				getFormat=false
+			end
+		end
+		if getFormat then 
+			table.insert(args,"-f")
+			table.insert(args,opts.format)
+		end
 		table.insert(filesToDelete, listenID)
 		JsonDownloadHandle = mp.command_native_async({
 			name = "subprocess",
@@ -373,16 +364,9 @@ local function DL()
 end
 
 local function clearCache()
-	-- print(pop)
-
-	--if pop == true then
 	mp.abort_async_command(AudioDownloadHandle)
 	mp.abort_async_command(VideoDownloadHandle)
 	mp.abort_async_command(JsonDownloadHandle)
-	-- for k, v in pairs(filesToDelete) do
-	-- 	print("remove: " .. v)
-	-- 	os.remove(v)
-	-- end
 	local ftd = io.open(cachePath .. "/temp.files", "a")
 	if ftd then
 		for k, v in pairs(filesToDelete) do
@@ -406,7 +390,6 @@ mp.add_hook("on_unload", 50, function()
 	mp.unregister_event(listener)
 	caught = true
 	listenID = "resetYtdlPreloadListener"
-	-- print(listenID)
 end)
 
 local skipInitial
@@ -490,7 +473,7 @@ while ftd ~= nil do
 		io.open(cachePath .. "/temp.files", "w"):close()
 		break
 	end
-	-- print("DEL::"..line)
+	
 	if pathSep ~= "/" then
 		os.execute('del /Q /F "' .. cachePath .. "\\" .. line .. '*" >nul 2>nul')
 	else

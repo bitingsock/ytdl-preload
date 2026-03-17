@@ -36,6 +36,7 @@ local options = require("mp.options")
 local opts = {
 	temp = platform_is_windows and os.getenv("TEMP") or "/tmp",
 	format = mp.get_property("ytdl-format"),
+	keepfaults = mp.get_opt("ytdl_preload_keepfaults") or "no"
 }
 for i = 1,99 do
 	opts["ytdl_opt"..i]=""
@@ -250,9 +251,12 @@ local function download_files(id, success, result, error)
 	end
 	if result.stderr ~= "" and result.stderr:find("ERROR") then
 		print(result.stderr)
-		print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
+		opts.keepfaults = mp.get_opt("ytdl_preload_keepfaults") or opts.keepfaults
+		if opts.keepfaults=="no" then
+			print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
+			mp.commandv("playlist-remove", nextIndex)
+		end
 		caught = true
-		mp.commandv("playlist-remove", nextIndex)
 		return
 	end
 	local jfile = cachePath .. "/" .. id .. ".json"

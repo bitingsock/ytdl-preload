@@ -12,13 +12,16 @@
 local function dump(o)
 	if type(o) == "table" then
 		local s = "{ "
+		local raw = ""
 		for k, v in pairs(o) do
 			if type(k) ~= "number" then
 				k = '"' .. k .. '"'
 			end
 			s = s .. "[" .. k .. "] = " .. dump(v) .. ","
+			raw = raw .. " " .. dump(v)
 		end
-		return s .. "} "
+		-- return s .. "} "
+		return raw
 	else
 		return tostring(o)
 	end
@@ -215,6 +218,12 @@ function random_hash(file)
 end
 
 local function addOPTS(old, fdrop)
+	for i=1,99 do
+		local opt = mp.get_opt(mp.get_script_name().."-ytdl_opt"..i)
+		if opt ~= "" then
+			additionalOpts["ytdl_opt"..i] = opt
+		end
+	end
 	for k, v in pairs(additionalOpts) do
 		if string.find(v, "%s") then
 			for l, w in string.gmatch(v, "([-%w]+) (.+)") do
@@ -296,7 +305,6 @@ local function download_files(id, success, result, error)
 		jfile,
 	}
 	args = addOPTS(args, true)
-	print(dump(args))
 	VideoDownloadHandle = mp.command_native_async({
 		name = "subprocess",
 		args = args,
@@ -350,6 +358,7 @@ local function DL()
 			table.insert(args,"-f")
 			table.insert(args,opts.format)
 		end
+		-- print(dump(args))
 		table.insert(filesToDelete, listenID)
 		JsonDownloadHandle = mp.command_native_async({
 			name = "subprocess",

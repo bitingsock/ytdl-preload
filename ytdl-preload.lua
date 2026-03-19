@@ -46,7 +46,7 @@ if opts.temp == nil then
 else 
 	opts.temp = opts.temp..pathSep.."ytdl"
 end
-options.read_options(opts, "ytdl_preload")
+options.read_options(opts, "ytdl-preload")
 
 local additionalOpts = {}
 for k, v in pairs(opts) do

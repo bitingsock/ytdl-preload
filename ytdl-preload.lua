@@ -46,7 +46,7 @@ if opts.temp == nil then
 else 
 	opts.temp = opts.temp..pathSep.."ytdl"
 end
-options.read_options(opts, "ytdl_preload")
+options.read_options(opts, "ytdl-preload")
 
 local additionalOpts = {}
 for k, v in pairs(opts) do
@@ -221,7 +221,7 @@ end
 local function addOPTS(old, fdrop)
 	for i=1,99 do
 		local opt = mp.get_opt(mp.get_script_name().."-ytdl_opt"..i)
-		if opt ~= "" then
+		if opt ~= nil then
 			additionalOpts["ytdl_opt"..i] = opt
 		end
 	end
@@ -230,6 +230,7 @@ local function addOPTS(old, fdrop)
 			for l, w in string.gmatch(v, "([-%w]+) (.+)") do
 				if fdrop==false or (fdrop==true and l~="-f" and l~="--format") then
 					table.insert(old, l)
+					w = string.gsub(w,'"','')
 					table.insert(old, w)
 				end
 			end
@@ -255,6 +256,8 @@ local function download_files(id, success, result, error)
 		if opts.keepfaults=="no" then
 			print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
 			mp.commandv("playlist-remove", nextIndex)
+		else
+			print("keeping faulty video (entry number: " .. nextIndex + 1 .. ") as URL")
 		end
 		caught = true
 		return
@@ -358,7 +361,7 @@ local function DL()
 				getFormat=false
 			end
 		end
-		if getFormat then 
+		if getFormat and opts.format~=nil and opts.format~="" then
 			table.insert(args,"-f")
 			table.insert(args,opts.format)
 		end

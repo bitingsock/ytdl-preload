@@ -4,5 +4,5 @@ key to disable with auto profiles:
 ```
 [ytdl_pl]
 profile-cond=...
-script-opts=enable_ytdl_preload=no
+script-opts=enable-ytdl-preload=no
 ```

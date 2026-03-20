@@ -4,10 +4,11 @@
 -- # ytdl_opt has no sanity check and should be formatted exactly how it would appear in yt-dlp CLI, they are split into a key/value pair on whitespace
 -- # at least on Windows, do not escape '\' in temp, just us a single one for each divider
 
--- #temp=R:\ytdltest
--- #ytdl_opt1=-r 50k
--- #ytdl_opt2=-N 5
--- #ytdl_opt#=etc
+-- temp=C:\tmp\ytdl
+-- keep_faults=no
+-- ytdl_opt1=-N 5
+-- ytdl_opt2=--sub-langs en.*
+-- ytdl_opt#=etc
 ----------------------
 local function dump(o)
 	if type(o) == "table" then
@@ -36,17 +37,19 @@ local options = require("mp.options")
 local opts = {
 	temp = platform_is_windows and os.getenv("TEMP") or "/tmp",
 	format = mp.get_property("ytdl-format"),
-	keepfaults = mp.get_opt("ytdl_preload_keepfaults") or "no"
+	keep_faults = mp.get_opt(mp.get_script_name().."_keep_faults") or "no"
 }
+
 for i = 1,99 do
 	opts["ytdl_opt"..i]=""
 end
 if opts.temp == nil then
-	opts.temp = "R:\\ytdl"
+	opts.temp = "C:\\temp\\ytdl"
 else 
 	opts.temp = opts.temp..pathSep.."ytdl"
 end
-options.read_options(opts, "ytdl-preload")
+
+options.read_options(opts, mp.get_script_name())
 
 local additionalOpts = {}
 for k, v in pairs(opts) do
@@ -286,7 +289,7 @@ local function download_files(id, success, result, error)
 			"--no-playlist",
 			"--no-part",
 			"-o",
-			cachePath .. "/%(title)s [preloaded] " .. listenID .. ".mka",
+			cachePath .. pathSep .. "%(title)s [preloaded] " .. listenID .. ".mka",
 			"--load-info-json",
 			jfile,
 		}
@@ -307,7 +310,7 @@ local function download_files(id, success, result, error)
 		"--no-playlist",
 		"--no-part",
 		"-o",
-		cachePath .. "/%(title)s [preloaded] " .. listenID .. ".mkv",
+		cachePath .. pathSep .. "%(title)s [preloaded] " .. listenID .. ".mkv",
 		"--load-info-json",
 		jfile,
 	}
@@ -321,7 +324,7 @@ local function download_files(id, success, result, error)
 end
 
 local function DL()
-	local enabled = mp.get_opt("enable-ytdl-preload")
+	local enabled = mp.get_opt("enable_ytdl_preload")
 
 	local index = tonumber(mp.get_property("playlist-pos"))
 	if tonumber(mp.get_property("playlist-count")) > 1 and index == tonumber(mp.get_property("playlist-count")) - 1 then
@@ -351,7 +354,7 @@ local function DL()
 			"--write-sub",
 			"--no-part",
 			"-o",
-			cachePath .. "/%(title)s [preloaded] " .. listenID .. ".%(ext)s",
+			cachePath .. pathSep .. "%(title)s [preloaded] " .. listenID .. ".%(ext)s",
 			nextFile,
 		}
 		args = addOPTS(args, false)
@@ -365,7 +368,7 @@ local function DL()
 			table.insert(args,"-f")
 			table.insert(args,opts.format)
 		end
-		--print(dump(args))
+		-- print(dump(args))
 		table.insert(filesToDelete, listenID)
 		JsonDownloadHandle = mp.command_native_async({
 			name = "subprocess",

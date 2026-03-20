@@ -321,7 +321,7 @@ local function download_files(id, success, result, error)
 end
 
 local function DL()
-	local enabled = mp.get_opt("enable_ytdl_preload")
+	local enabled = mp.get_opt("enable-ytdl-preload")
 
 	local index = tonumber(mp.get_property("playlist-pos"))
 	if tonumber(mp.get_property("playlist-count")) > 1 and index == tonumber(mp.get_property("playlist-count")) - 1 then
@@ -365,7 +365,7 @@ local function DL()
 			table.insert(args,"-f")
 			table.insert(args,opts.format)
 		end
-		print(dump(args))
+		--print(dump(args))
 		table.insert(filesToDelete, listenID)
 		JsonDownloadHandle = mp.command_native_async({
 			name = "subprocess",

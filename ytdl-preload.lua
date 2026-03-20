@@ -137,8 +137,8 @@ local function load_files(dtitle, destination, audio, wait)
 			print("---could not find mka after wait, audio may be missing---")
 		end
 	end
-	dtitle = dtitle:gsub("-" .. ("[%w_-]"):rep(11) .. "$", "")
-	dtitle = dtitle:gsub("^" .. ("[%d%w]"):rep(24) .. "%-", "")
+	-- dtitle = dtitle:gsub("-" .. ("[%w_-]"):rep(11) .. "$", "")
+	dtitle = dtitle:gsub(" " .. ("[%d%w]"):rep(24) .. "$", "")
 	if useNewLoadfile() then
 		mp.commandv(
 			"loadfile",
@@ -286,7 +286,7 @@ local function download_files(id, success, result, error)
 			"--no-playlist",
 			"--no-part",
 			"-o",
-			cachePath .. "/" .. id .. "-%(title)s-%(id)s.mka",
+			cachePath .. "/%(title)s [preloaded] " .. listenID .. ".mka",
 			"--load-info-json",
 			jfile,
 		}
@@ -307,7 +307,7 @@ local function download_files(id, success, result, error)
 		"--no-playlist",
 		"--no-part",
 		"-o",
-		cachePath .. "/" .. id .. "-%(title)s-%(id)s.mkv",
+		cachePath .. "/%(title)s [preloaded] " .. listenID .. ".mkv",
 		"--load-info-json",
 		jfile,
 	}
@@ -351,7 +351,7 @@ local function DL()
 			"--write-sub",
 			"--no-part",
 			"-o",
-			cachePath .. "/" .. listenID .. "-%(title)s-%(id)s.%(ext)s",
+			cachePath .. "/%(title)s [preloaded] " .. listenID .. ".%(ext)s",
 			nextFile,
 		}
 		args = addOPTS(args, false)
@@ -365,7 +365,7 @@ local function DL()
 			table.insert(args,"-f")
 			table.insert(args,opts.format)
 		end
-		-- print(dump(args))
+		print(dump(args))
 		table.insert(filesToDelete, listenID)
 		JsonDownloadHandle = mp.command_native_async({
 			name = "subprocess",
@@ -379,26 +379,6 @@ local function DL()
 	end
 end
 
-local function clearCache()
-	mp.abort_async_command(AudioDownloadHandle)
-	mp.abort_async_command(VideoDownloadHandle)
-	mp.abort_async_command(JsonDownloadHandle)
-	local ftd = io.open(cachePath .. "/temp.files", "a")
-	if ftd then
-		for k, v in pairs(filesToDelete) do
-			ftd:write(v .. "\n")
-			if package.config:sub(1, 1) ~= "/" then
-				os.execute('del /Q /F "' .. cachePath .. "\\\\" .. v .. '*"')
-			else
-				os.execute("rm -f " .. cachePath .. "/" .. v .. "*")
-			end
-		end
-		ftd:close()
-		print("clear")
-	end
-	mp.command("quit")
-	--end
-end
 mp.add_hook("on_unload", 50, function()
 	-- mp.abort_async_command(AudioDownloadHandle)
 	-- mp.abort_async_command(VideoDownloadHandle)
@@ -480,7 +460,28 @@ if platform_is_windows then
 end
 
 mp.register_event("start-file", DL)
-mp.register_event("shutdown", clearCache)
+
+local function deletePreload(hash)
+	if platform_is_windows then
+		os.execute('del /Q /F "' .. cachePath .. '\\*' .. hash .. '*" >nul 2>nul')
+	else
+		os.execute("rm -f " .. cachePath .. "/*" .. hash .. "* &> /dev/null")
+	end
+end
+
+mp.register_event("shutdown", function()
+	mp.abort_async_command(AudioDownloadHandle)
+	mp.abort_async_command(VideoDownloadHandle)
+	mp.abort_async_command(JsonDownloadHandle)
+	local ftd = io.open(cachePath .. "/temp.files", "a")
+	if ftd then
+		for k, v in pairs(filesToDelete) do
+			ftd:write(v .. "\n")
+			deletePreload(v)
+		end
+		ftd:close()
+	end
+end)
 local ftd = io.open(cachePath .. "/temp.files", "r")
 while ftd ~= nil do
 	local line = ftd:read()
@@ -489,10 +490,5 @@ while ftd ~= nil do
 		io.open(cachePath .. "/temp.files", "w"):close()
 		break
 	end
-	
-	if pathSep ~= "/" then
-		os.execute('del /Q /F "' .. cachePath .. "\\" .. line .. '*" >nul 2>nul')
-	else
-		os.execute("rm -f " .. cachePath .. "/" .. line .. "* &> /dev/null")
-	end
+	deletePreload(line)
 end

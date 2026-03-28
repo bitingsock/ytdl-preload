@@ -131,6 +131,7 @@ end
 local title = ""
 local fVideo = ""
 local fAudio = ""
+local dvID = ""
 local function load_files(dtitle, destination, audio, wait)
 	if wait then
 		if exists(destination .. ".mka") then
@@ -148,7 +149,7 @@ local function load_files(dtitle, destination, audio, wait)
 			destination .. ".mkv",
 			"append",
 			-1,
-			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no'
+			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID
 		)
 	else
 		mp.commandv(
@@ -167,8 +168,9 @@ end
 local listenID = ""
 local function listener(event)
 	if not caught and event.prefix == mp.get_script_name() and string.find(event.text, listenID) then
-		local destination = string.match(event.text, "%[download%] Destination: (.+).mkv")
-			or string.match(event.text, "%[download%] (.+).mkv has already been downloaded")
+		-- local destination = string.match(event.text, "%[download%] Destination: (.+).mkv")
+		-- 	or string.match(event.text, "%[download%] (.+).mkv has already been downloaded")
+		local destination = title
 		if destination and string.find(destination, string.gsub(cachePath, "~/", "")) then
 			mp.unregister_event(listener)
 			_, title = utils.split_path(destination)
@@ -275,6 +277,8 @@ local function download_files(id, success, result, error)
 		print("playlist detected. abort")
 		return
 	end
+	title = string.match(json.requested_downloads[1].filename, "(.+)%.[%d%w]+")
+	dvID = json.id or ""
 	fVideo = json.format_id
 	if fVideo:find("+") then
 		fAudio = string.match(fVideo, "%+([^/]+)")
@@ -459,7 +463,7 @@ end
 --end ytdl_hook
 
 if platform_is_windows then
-	restrictFilenames = "--restrict-filenames"
+	restrictFilenames = "--windows-filenames"
 end
 
 mp.register_event("start-file", DL)

@@ -261,8 +261,8 @@ local function download_files(id, success, result, error)
 	end
 	if result.stderr ~= "" and result.stderr:find("ERROR") then
 		print(result.stderr)
-		opts.keepfaults = mp.get_opt("ytdl_preload_keepfaults") or opts.keepfaults
-		if opts.keepfaults=="no" then
+		opts.keep_faults = mp.get_opt("ytdl_preload_keep_faults") or opts.keep_faults
+		if opts.keep_faults=="no" then
 			print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
 			mp.commandv("playlist-remove", nextIndex)
 		else

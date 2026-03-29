@@ -64,15 +64,15 @@ local chapter_list = {}
 local json = ""
 local filesToDelete = {}
 
-local function exists(file)
-	local ok, err, code = os.rename(file, file)
-	if not ok then
-		if code == 13 then -- Permission denied, but it exists
-			return true
-		end
-	end
-	return ok, err
-end
+-- local function exists(file)
+-- 	local ok, err, code = os.rename(file, file)
+-- 	if not ok then
+-- 		if code == 13 then -- Permission denied, but it exists
+-- 			return true
+-- 		end
+-- 	end
+-- 	return ok, err
+-- end
 local function useNewLoadfile()
 	for _, c in pairs(mp.get_property_native("command-list")) do
 		if c["name"] == "loadfile" then
@@ -134,23 +134,27 @@ local fAudio = ""
 local dvID = ""
 local function load_files(dtitle, destination, audio, wait)
 	if wait then
-		if exists(destination .. ".mka") then
+		if utils.file_info(destination .. ".mka") then
 			print("---wait success: found mka---")
-			audio = "audio-file=" .. destination .. ".mka,"
+			audio = 'audio-file="' .. destination .. '.mka",'
 		else
 			print("---could not find mka after wait, audio may be missing---")
 		end
 	end
 	-- dtitle = dtitle:gsub("-" .. ("[%w_-]"):rep(11) .. "$", "")
 	dtitle = dtitle:gsub(" " .. ("[%d%w]"):rep(24) .. "$", "")
+	local destMKV = destination .. ".mkv"
+	local loadOpts = audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID
 	if useNewLoadfile() then
-		mp.commandv(
-			"loadfile",
-			destination .. ".mkv",
-			"append",
-			-1,
-			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID
-		)
+		local commandTable = { name = "loadfile" , url = destMKV, flags = "append", index = -1, options = loadOpts}
+		mp.command_native(commandTable)
+		-- mp.commandv(
+		-- 	"loadfile",
+		-- 	destMKV,
+		-- 	"append",
+		-- 	-1,
+		-- 	audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID
+		-- )
 	else
 		mp.commandv(
 			"loadfile",
@@ -178,8 +182,8 @@ local function listener(event)
 			if fAudio == "" then
 				load_files(title, destination, audio, false)
 			else
-				if exists(destination .. ".mka") then
-					audio = "audio-file=" .. destination .. ".mka,"
+				if utils.file_info(destination .. ".mka") then
+					audio = 'audio-file="' .. destination .. '.mka",'
 					load_files(title, destination, audio, false)
 				else
 					print("---expected mka but could not find it, waiting for 2 seconds---")

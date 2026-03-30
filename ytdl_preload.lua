@@ -342,16 +342,17 @@ end
 
 local enabled = true
 local function DL()
-	local enabledOpt = mp.get_opt("enable_ytdl_preload")
+	local enabledOpt = tostring(mp.get_opt("enable_ytdl_preload"))
+	print(enabledOpt)
 	if enabled == false then 
-		enabledOpt = "no"
+		enabledOpt = "false"
 	end
 	local index = tonumber(mp.get_property("playlist-pos"))
 	if tonumber(mp.get_property("playlist-count")) > 1 and index == tonumber(mp.get_property("playlist-count")) - 1 then
 		index = -1
 	end
 
-	if (enabledOpt and enabledOpt=="no") or
+	if (enabledOpt and enabledOpt=="false") or
 		(tonumber(mp.get_property("playlist-count")) == 1) or
 		(not mp.get_property("playlist/" .. index + 1 .. "/filename"):find("://", 0, false))
 	then

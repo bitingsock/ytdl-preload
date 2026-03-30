@@ -10,3 +10,7 @@ script-opts=enable_ytdl_preload=no,ytdl_preload_keep_faults=no,ytdl_preload_ytdl
 preloading can also be disabled with the default keybind `Y` or the script message `toggle_ytdl_preload`
 - input.conf example:
 `C script-message toggle_ytdl_preload`
+
+keeping or removing faulty videos can be toggled with the default keybind `Ctrl+f` or the script message `toggle_keep_faults`
+- input.conf example:
+`V script-message toggle_keep_faults`

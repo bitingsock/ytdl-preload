@@ -37,9 +37,9 @@ local options = require("mp.options")
 local opts = {
 	temp = platform_is_windows and os.getenv("TEMP") or "/tmp",
 	format = mp.get_property("ytdl-format"),
-	keep_faults = mp.get_opt(mp.get_script_name().."_keep_faults") or "no"
+	keep_faults = tostring(mp.get_opt(mp.get_script_name().."_keep_faults")) or "false"
 }
-
+local toggleFaults = ""
 for i = 1,99 do
 	opts["ytdl_opt"..i]=""
 end
@@ -261,8 +261,17 @@ local function download_files(id, success, result, error)
 	end
 	if result.stderr ~= "" and result.stderr:find("ERROR") then
 		print(result.stderr)
-		opts.keep_faults = mp.get_opt("ytdl_preload_keep_faults") or opts.keep_faults
-		if opts.keep_faults=="no" then
+
+		local keep = opts.keep_faults
+		if toggleFaults ~= "" then
+			keep = toggleFaults
+			-- print("TOG")
+		elseif mp.get_opt("ytdl_preload_keep_faults")~=nil then
+			keep = tostring(mp.get_opt("ytdl_preload_keep_faults"))
+			-- print("OPT")
+		end
+		-- print(type(keep)..keep)
+		if keep=="false" then
 			print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
 			mp.commandv("playlist-remove", nextIndex)
 		else
@@ -506,8 +515,21 @@ while ftd ~= nil do
 	end
 	deletePreload(line)
 end
+
 mp.add_key_binding("Y", "toggle_ytdl_preload", function()
 	enabled = not enabled
 	if enabled == true then DL() end
 	mp.osd_message("enable_ytdl_preload="..tostring(enabled))
+end)
+
+mp.add_key_binding("Ctrl+f", "toggle_keep_faults", function()
+	if toggleFaults == "" then
+		toggleFaults = tostring(mp.get_opt(mp.get_script_name().."_keep_faults")) or opts.keep_faults
+	end
+	if toggleFaults == "true" then
+		toggleFaults = "false"
+	else
+		toggleFaults = "true"
+	end
+	mp.osd_message("keep_faults="..tostring(toggleFaults))
 end)

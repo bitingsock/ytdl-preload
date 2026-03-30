@@ -343,7 +343,7 @@ end
 local enabled = true
 local function DL()
 	local enabledOpt = tostring(mp.get_opt("enable_ytdl_preload"))
-	print(enabledOpt)
+	-- print(enabledOpt)
 	if enabled == false then 
 		enabledOpt = "false"
 	end

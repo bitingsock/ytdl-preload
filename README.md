@@ -1,8 +1,16 @@
-mpv script to precache the next entry in your playlist if it is a network source by downloading it to a temp file ahead of time. It will delete the directory on exit. Old gist: https://gist.github.com/bitingsock/17d90e3deeb35b5f75e55adb19098f58
+mpv script to precache the next entry in your playlist if it is a network source by downloading it to a temp file ahead of time. It will delete the directory on exit.
 --
-key to disable with auto profiles:
+control with auto profiles:
 ```
 [ytdl_pl]
 profile-cond=...
-script-opts=enable_ytdl_preload=no
+script-opts=enable_ytdl_preload=false,ytdl_preload_keep_faults=false,ytdl_preload_ytdl_opt1=-N 5
 ```
+
+preloading can also be disabled with the default keybind `Y` or the script message `toggle_ytdl_preload`
+- input.conf example:
+`C script-message toggle_ytdl_preload`
+
+keeping or removing faulty videos can be toggled with the default keybind `Ctrl+f` or the script message `toggle_keep_faults`
+- input.conf example:
+`V script-message toggle_keep_faults`

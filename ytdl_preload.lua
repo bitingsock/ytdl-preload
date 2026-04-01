@@ -4,10 +4,11 @@
 -- # ytdl_opt has no sanity check and should be formatted exactly how it would appear in yt-dlp CLI, they are split into a key/value pair on whitespace
 -- # at least on Windows, do not escape '\' in temp, just us a single one for each divider
 
--- #temp=R:\ytdltest
--- #ytdl_opt1=-r 50k
--- #ytdl_opt2=-N 5
--- #ytdl_opt#=etc
+-- temp=C:\tmp\ytdl
+-- keep_faults=no
+-- ytdl_opt1=-N 5
+-- ytdl_opt2=--sub-langs en.*
+-- ytdl_opt#=etc
 ----------------------
 local function dump(o)
 	if type(o) == "table" then
@@ -36,17 +37,19 @@ local options = require("mp.options")
 local opts = {
 	temp = platform_is_windows and os.getenv("TEMP") or "/tmp",
 	format = mp.get_property("ytdl-format"),
-	keepfaults = mp.get_opt("ytdl_preload_keepfaults") or "no"
+	keep_faults = tostring(mp.get_opt(mp.get_script_name().."_keep_faults")) or "false"
 }
+local toggleFaults = ""
 for i = 1,99 do
 	opts["ytdl_opt"..i]=""
 end
 if opts.temp == nil then
-	opts.temp = "R:\\ytdl"
+	opts.temp = "C:\\temp\\ytdl"
 else 
 	opts.temp = opts.temp..pathSep.."ytdl"
 end
-options.read_options(opts, "ytdl-preload")
+
+options.read_options(opts, mp.get_script_name())
 
 local additionalOpts = {}
 for k, v in pairs(opts) do
@@ -61,15 +64,15 @@ local chapter_list = {}
 local json = ""
 local filesToDelete = {}
 
-local function exists(file)
-	local ok, err, code = os.rename(file, file)
-	if not ok then
-		if code == 13 then -- Permission denied, but it exists
-			return true
-		end
-	end
-	return ok, err
-end
+-- local function exists(file)
+-- 	local ok, err, code = os.rename(file, file)
+-- 	if not ok then
+-- 		if code == 13 then -- Permission denied, but it exists
+-- 			return true
+-- 		end
+-- 	end
+-- 	return ok, err
+-- end
 local function useNewLoadfile()
 	for _, c in pairs(mp.get_property_native("command-list")) do
 		if c["name"] == "loadfile" then
@@ -128,25 +131,30 @@ end
 local title = ""
 local fVideo = ""
 local fAudio = ""
+local dvID = ""
 local function load_files(dtitle, destination, audio, wait)
 	if wait then
-		if exists(destination .. ".mka") then
+		if utils.file_info(destination .. ".mka") then
 			print("---wait success: found mka---")
-			audio = "audio-file=" .. destination .. ".mka,"
+			audio = 'audio-file="' .. destination .. '.mka",'
 		else
 			print("---could not find mka after wait, audio may be missing---")
 		end
 	end
-	dtitle = dtitle:gsub("-" .. ("[%w_-]"):rep(11) .. "$", "")
-	dtitle = dtitle:gsub("^" .. ("[%d%w]"):rep(24) .. "%-", "")
+	-- dtitle = dtitle:gsub("-" .. ("[%w_-]"):rep(11) .. "$", "")
+	dtitle = dtitle:gsub(" " .. ("[%d%w]"):rep(24) .. "$", "")
+	local destMKV = destination .. ".mkv"
+	local loadOpts = audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID
 	if useNewLoadfile() then
-		mp.commandv(
-			"loadfile",
-			destination .. ".mkv",
-			"append",
-			-1,
-			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no'
-		)
+		local commandTable = { name = "loadfile" , url = destMKV, flags = "append", index = -1, options = loadOpts}
+		mp.command_native(commandTable)
+		-- mp.commandv(
+		-- 	"loadfile",
+		-- 	destMKV,
+		-- 	"append",
+		-- 	-1,
+		-- 	audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID
+		-- )
 	else
 		mp.commandv(
 			"loadfile",
@@ -164,8 +172,9 @@ end
 local listenID = ""
 local function listener(event)
 	if not caught and event.prefix == mp.get_script_name() and string.find(event.text, listenID) then
-		local destination = string.match(event.text, "%[download%] Destination: (.+).mkv")
-			or string.match(event.text, "%[download%] (.+).mkv has already been downloaded")
+		-- local destination = string.match(event.text, "%[download%] Destination: (.+).mkv")
+		-- 	or string.match(event.text, "%[download%] (.+).mkv has already been downloaded")
+		local destination = title
 		if destination and string.find(destination, string.gsub(cachePath, "~/", "")) then
 			mp.unregister_event(listener)
 			_, title = utils.split_path(destination)
@@ -173,8 +182,8 @@ local function listener(event)
 			if fAudio == "" then
 				load_files(title, destination, audio, false)
 			else
-				if exists(destination .. ".mka") then
-					audio = "audio-file=" .. destination .. ".mka,"
+				if utils.file_info(destination .. ".mka") then
+					audio = 'audio-file="' .. destination .. '.mka",'
 					load_files(title, destination, audio, false)
 				else
 					print("---expected mka but could not find it, waiting for 2 seconds---")
@@ -252,8 +261,17 @@ local function download_files(id, success, result, error)
 	end
 	if result.stderr ~= "" and result.stderr:find("ERROR") then
 		print(result.stderr)
-		opts.keepfaults = mp.get_opt("ytdl_preload_keepfaults") or opts.keepfaults
-		if opts.keepfaults=="no" then
+
+		local keep = opts.keep_faults
+		if toggleFaults ~= "" then
+			keep = toggleFaults
+			-- print("TOG")
+		elseif mp.get_opt("ytdl_preload_keep_faults")~=nil then
+			keep = tostring(mp.get_opt("ytdl_preload_keep_faults"))
+			-- print("OPT")
+		end
+		-- print(type(keep)..keep)
+		if keep=="false" then
 			print("removing faulty video (entry number: " .. nextIndex + 1 .. ") from playlist")
 			mp.commandv("playlist-remove", nextIndex)
 		else
@@ -272,6 +290,8 @@ local function download_files(id, success, result, error)
 		print("playlist detected. abort")
 		return
 	end
+	title = string.match(json.requested_downloads[1].filename, "(.+)%.[%d%w]+")
+	dvID = json.id or ""
 	fVideo = json.format_id
 	if fVideo:find("+") then
 		fAudio = string.match(fVideo, "%+([^/]+)")
@@ -286,7 +306,7 @@ local function download_files(id, success, result, error)
 			"--no-playlist",
 			"--no-part",
 			"-o",
-			cachePath .. "/" .. id .. "-%(title)s-%(id)s.mka",
+			cachePath .. pathSep .. "%(title)s [preloaded] " .. listenID .. ".mka",
 			"--load-info-json",
 			jfile,
 		}
@@ -307,7 +327,7 @@ local function download_files(id, success, result, error)
 		"--no-playlist",
 		"--no-part",
 		"-o",
-		cachePath .. "/" .. id .. "-%(title)s-%(id)s.mkv",
+		cachePath .. pathSep .. "%(title)s [preloaded] " .. listenID .. ".mkv",
 		"--load-info-json",
 		jfile,
 	}
@@ -320,15 +340,19 @@ local function download_files(id, success, result, error)
 	mp.register_event("log-message", listener)
 end
 
+local enabled = true
 local function DL()
-	local enabled = mp.get_opt("enable_ytdl_preload")
-
+	local enabledOpt = tostring(mp.get_opt("enable_ytdl_preload"))
+	-- print(enabledOpt)
+	if enabled == false then 
+		enabledOpt = "false"
+	end
 	local index = tonumber(mp.get_property("playlist-pos"))
 	if tonumber(mp.get_property("playlist-count")) > 1 and index == tonumber(mp.get_property("playlist-count")) - 1 then
 		index = -1
 	end
 
-	if (enabled and enabled=="no") or
+	if (enabledOpt and enabledOpt=="false") or
 		(tonumber(mp.get_property("playlist-count")) == 1) or
 		(not mp.get_property("playlist/" .. index + 1 .. "/filename"):find("://", 0, false))
 	then
@@ -351,7 +375,7 @@ local function DL()
 			"--write-sub",
 			"--no-part",
 			"-o",
-			cachePath .. "/" .. listenID .. "-%(title)s-%(id)s.%(ext)s",
+			cachePath .. pathSep .. "%(title)s [preloaded] " .. listenID .. ".%(ext)s",
 			nextFile,
 		}
 		args = addOPTS(args, false)
@@ -379,26 +403,6 @@ local function DL()
 	end
 end
 
-local function clearCache()
-	mp.abort_async_command(AudioDownloadHandle)
-	mp.abort_async_command(VideoDownloadHandle)
-	mp.abort_async_command(JsonDownloadHandle)
-	local ftd = io.open(cachePath .. "/temp.files", "a")
-	if ftd then
-		for k, v in pairs(filesToDelete) do
-			ftd:write(v .. "\n")
-			if package.config:sub(1, 1) ~= "/" then
-				os.execute('del /Q /F "' .. cachePath .. "\\\\" .. v .. '*"')
-			else
-				os.execute("rm -f " .. cachePath .. "/" .. v .. "*")
-			end
-		end
-		ftd:close()
-		print("clear")
-	end
-	mp.command("quit")
-	--end
-end
 mp.add_hook("on_unload", 50, function()
 	-- mp.abort_async_command(AudioDownloadHandle)
 	-- mp.abort_async_command(VideoDownloadHandle)
@@ -476,11 +480,32 @@ end
 --end ytdl_hook
 
 if platform_is_windows then
-	restrictFilenames = "--restrict-filenames"
+	restrictFilenames = "--windows-filenames"
 end
 
 mp.register_event("start-file", DL)
-mp.register_event("shutdown", clearCache)
+
+local function deletePreload(hash)
+	if platform_is_windows then
+		os.execute('del /Q /F "' .. cachePath .. '\\*' .. hash .. '*" >nul 2>nul')
+	else
+		os.execute("rm -f " .. cachePath .. "/*" .. hash .. "* &> /dev/null")
+	end
+end
+
+mp.register_event("shutdown", function()
+	mp.abort_async_command(AudioDownloadHandle)
+	mp.abort_async_command(VideoDownloadHandle)
+	mp.abort_async_command(JsonDownloadHandle)
+	local ftd = io.open(cachePath .. "/temp.files", "a")
+	if ftd then
+		for k, v in pairs(filesToDelete) do
+			ftd:write(v .. "\n")
+			deletePreload(v)
+		end
+		ftd:close()
+	end
+end)
 local ftd = io.open(cachePath .. "/temp.files", "r")
 while ftd ~= nil do
 	local line = ftd:read()
@@ -489,10 +514,23 @@ while ftd ~= nil do
 		io.open(cachePath .. "/temp.files", "w"):close()
 		break
 	end
-	
-	if pathSep ~= "/" then
-		os.execute('del /Q /F "' .. cachePath .. "\\" .. line .. '*" >nul 2>nul')
-	else
-		os.execute("rm -f " .. cachePath .. "/" .. line .. "* &> /dev/null")
-	end
+	deletePreload(line)
 end
+
+mp.add_key_binding("Y", "toggle_ytdl_preload", function()
+	enabled = not enabled
+	if enabled == true then DL() end
+	mp.osd_message("enable_ytdl_preload="..tostring(enabled))
+end)
+
+mp.add_key_binding("Ctrl+f", "toggle_keep_faults", function()
+	if toggleFaults == "" then
+		toggleFaults = tostring(mp.get_opt(mp.get_script_name().."_keep_faults")) or opts.keep_faults
+	end
+	if toggleFaults == "true" then
+		toggleFaults = "false"
+	else
+		toggleFaults = "true"
+	end
+	mp.osd_message("keep_faults="..tostring(toggleFaults))
+end)

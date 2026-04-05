@@ -173,24 +173,6 @@ mp.add_hook("on_preloaded", 10, function()
 end)
 --end ytdl_hook
 
-function random_hash(file)
-	local hash = 0
-	for c=1, #file do
-		hash = (hash*31+file:byte(c))%2^32
-	end
-	math.randomseed(hash)
-	hash = ""
-	hash_chars = {"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "A", "B", "C", "D", "E",
-				"F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T",
-				"U", "V", "W", "X", "Y", "Z"}
-
-	for i = 1, 24 do
-		local index = math.random(1, #hash_chars)
-		hash = hash .. hash_chars[index]
-	end
-	return hash
-end
-
 local function addOPTS(old, fdrop)
 	for i=1,99 do
 		local opt = mp.get_opt(mp.get_script_name().."-ytdl_opt"..i)
@@ -350,7 +332,6 @@ local function DL()
 			table.insert(args,"-f")
 			table.insert(args,opts.format)
 		end
-		-- print(dump(args))
 		JsonDownloadHandle = mp.command_native_async({
 			name = "subprocess",
 			args = args,

@@ -202,7 +202,7 @@ local JsonDownloadHandle = {}
 local function download_files(success, result, error)
 
 	if result.killed_by_us then
-		print("kill")
+		print("killed")
 		return
 	end
 	if result.stderr ~= "" and result.stderr:find("ERROR") then
@@ -230,7 +230,7 @@ local function download_files(success, result, error)
 	jfileIO:close()
 
 	json = utils.parse_json(result.stdout)
-	if json._type == "playlist" then 
+	if json._type == "playlist" then
 		print("playlist detected. abort")
 		return
 	end
@@ -315,6 +315,7 @@ local function DL()
 			"--skip-download",
 			restrictFilenames,
 			"--no-playlist",
+			"--flat-playlist",
 			"--write-sub",
 			"--no-part",
 			"-o",

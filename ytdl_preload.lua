@@ -20,7 +20,7 @@ local options = require("mp.options")
 local opts = {
 	temp = platform_is_windows and os.getenv("TEMP") or "/tmp",
 	format = mp.get_property("ytdl-format"),
-	keep_faults = tostring(mp.get_opt(mp.get_script_name().."_keep_faults")) or "false"
+	keep_faults = tostring(mp.get_opt(mp.get_script_name().."_keep_faults") or "false")
 }
 local toggleFaults = ""
 for i = 1,99 do

@@ -445,6 +445,7 @@ mp.register_event("shutdown", function()
 		end
 		ftd:close()
 	end
+	deletePreload(".info.json")
 end)
 local ftd = io.open(cachePath .. "/temp.files", "r")
 while ftd ~= nil do
@@ -456,6 +457,7 @@ while ftd ~= nil do
 	end
 	deletePreload(line)
 end
+deletePreload(".info.json")
 
 mp.add_key_binding("Y", "toggle_ytdl_preload", function()
 	enabled = not enabled

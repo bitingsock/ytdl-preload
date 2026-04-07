@@ -224,16 +224,14 @@ local function download_files(success, result, error)
 		return
 	end
 
-	local jfile = cachePath .. "/ytdl_preload.json"
-	local jfileIO = io.open(jfile, "w")
-	jfileIO:write(result.stdout)
-	jfileIO:close()
-
 	json = utils.parse_json(result.stdout)
 	if json._type == "playlist" then
 		print("playlist detected. abort")
 		return
 	end
+	-- local jio = io.open("t.json", "w")
+	-- jio:write(result.stdout)
+	-- jio:close()
 	title = string.match(json.requested_downloads[1].filename, "(.+)%.[%d%w]+")
 	dvID = json.id or ""
 	fVideo = json.format_id
@@ -252,7 +250,7 @@ local function download_files(success, result, error)
 			"-o",
 			cachePath .. pathSep .. "%(title)s.mka",
 			"--load-info-json",
-			jfile,
+			json.requested_downloads[1].infojson_filename,
 		}
 		args = addOPTS(args, true)
 		AudioDownloadHandle = mp.command_native_async({
@@ -273,7 +271,7 @@ local function download_files(success, result, error)
 		"-o",
 		cachePath .. pathSep .. "%(title)s.mkv",
 		"--load-info-json",
-		jfile,
+		json.requested_downloads[1].infojson_filename,
 	}
 	args = addOPTS(args, true)
 	VideoDownloadHandle = mp.command_native_async({
@@ -311,12 +309,13 @@ local function DL()
 		local args = {
 			ytdl,
 			"--dump-single-json",
+			"--write-info-json",
+			"--write-subs",
 			"--no-simulate",
 			"--skip-download",
 			restrictFilenames,
 			"--no-playlist",
 			"--flat-playlist",
-			"--write-sub",
 			"--no-part",
 			"-o",
 			cachePath .. pathSep .. "%(title)s.%(ext)s",

@@ -262,6 +262,8 @@ local function download_files(success, result, error)
 
 	local args = {
 		ytdl,
+		"--fixup",
+		"never",
 		"--no-continue",
 		"-f",
 		fVideo,

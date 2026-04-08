@@ -42,7 +42,7 @@ for k, v in pairs(opts) do
 end
 local cachePath = opts.temp
 
-local restrictFilenames = "--no-restrict-filenames"
+local restrictFilenames = "--no-windows-filenames"
 local chapter_list = {}
 local json = ""
 local filesToDelete = {}

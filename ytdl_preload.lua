@@ -431,6 +431,7 @@ local function deletePreload(hash)
 	if platform_is_windows then
 		os.execute('del /Q /F "' .. cachePath .. '\\*' .. hash .. '*" >nul 2>nul')
 	else
+		hash = hash:gsub(" ","\\ ")
 		os.execute("rm -f " .. cachePath .. "/*" .. hash .. "* &> /dev/null")
 	end
 end

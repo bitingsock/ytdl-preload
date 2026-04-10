@@ -115,7 +115,6 @@ local function load_files(dtitle, destination, audio, wait)
 			print("---could not find mka after wait, audio may be missing---")
 		end
 	end
-	dtitle = dtitle:gsub(" " .. ("[%d%w]"):rep(24) .. "$", "")
 	local destMKV = destination .. ".mkv"
 	local loadOpts = audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID
 	if useNewLoadfile() then

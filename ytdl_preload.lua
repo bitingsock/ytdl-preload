@@ -431,7 +431,7 @@ local function deletePreload(hash)
 		-- os.execute('del /Q /F "' .. cachePath .. '\\*' .. hash .. '*" >nul 2>nul')
 		mp.command_native_async({
 			name = "subprocess",
-			args = {"cmd", "/c", "del", "/Q", "/F", cachePath .. "\\*" .. hash .. "*"},
+			args = {"CMD.exe", "/c", "START", '""', "/Min", "CMD.exe", "/c", "del", "/Q", "/F", cachePath .. "\\*" .. hash .. "*"},
 			playback_only = false,
 			detach = true
 		})

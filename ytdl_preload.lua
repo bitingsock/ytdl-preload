@@ -428,7 +428,13 @@ mp.register_event("start-file", DL)
 
 local function deletePreload(hash)
 	if platform_is_windows then
-		os.execute('del /Q /F "' .. cachePath .. '\\*' .. hash .. '*" >nul 2>nul')
+		-- os.execute('del /Q /F "' .. cachePath .. '\\*' .. hash .. '*" >nul 2>nul')
+		mp.command_native_async({
+			name = "subprocess",
+			args = {"cmd", "/c", "del", "/Q", "/F", cachePath .. "\\*" .. hash .. "*"},
+			playback_only = false,
+			detach = true
+		})
 	else
 		hash = hash:gsub("[' ]", "\\%0")
 		os.execute("rm -f " .. cachePath .. "/*" .. hash .. "* &> /dev/null")

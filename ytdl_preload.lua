@@ -430,6 +430,7 @@ mp.register_event("start-file", DL)
 local function deletePreload(hash)
 	if platform_is_windows then
 		-- os.execute('del /Q /F "' .. cachePath .. '\\*' .. hash .. '*" >nul 2>nul')
+		hash = hash:gsub("[']", "%0%0")
 		exec({"powershell.exe", "-Command", "Remove-Item", "-Path", "'" .. cachePath .. "\\*" .. hash .. "*'"})
 	else
 		hash = hash:gsub("[' ]", "\\%0")

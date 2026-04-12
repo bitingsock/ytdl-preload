@@ -390,6 +390,7 @@ local function exec(args)
 		args = args,
 		capture_stdout = true,
 		capture_stderr = true,
+		playback_only = false
 	})
 	return ret.status, ret.stdout, ret, ret.killed_by_us
 end
@@ -429,12 +430,7 @@ mp.register_event("start-file", DL)
 local function deletePreload(hash)
 	if platform_is_windows then
 		-- os.execute('del /Q /F "' .. cachePath .. '\\*' .. hash .. '*" >nul 2>nul')
-		mp.command_native_async({
-			name = "subprocess",
-			args = {"CMD.exe", "/c", "START", '""', "/Min", "CMD.exe", "/c", "del", "/Q", "/F", cachePath .. "\\*" .. hash .. "*"},
-			playback_only = false,
-			detach = true
-		})
+		exec({"powershell.exe", "-Command", "Remove-Item", "-Path", "'" .. cachePath .. "\\*" .. hash .. "*'"})
 	else
 		hash = hash:gsub("[' ]", "\\%0")
 		os.execute("rm -f " .. cachePath .. "/*" .. hash .. "* &> /dev/null")

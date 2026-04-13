@@ -103,6 +103,7 @@ end
 --end ytdl_hook
 
 local title = ""
+local destination = ""
 local fVideo = ""
 local fAudio = ""
 local dvID = ""
@@ -135,25 +136,20 @@ local function load_files(dtitle, destination, audio, wait)
 end
 
 local function listener(event)
-	if not caught and event.prefix == mp.get_script_name() and string.find(event.text, "%[download%] Destination: ") then
-		local destination = title
-		if destination and string.find(destination, string.gsub(cachePath, "~/", "")) then
-			mp.unregister_event(listener)
-			_, title = utils.split_path(destination)
-			table.insert(filesToDelete, title)
-			local audio = ""
-			if fAudio == "" then
+	if not caught and event.prefix == mp.get_script_name() and string.find(event.text, "%[download%] Destination: ") and string.find(destination, string.gsub(cachePath, "~/", "")) then
+		mp.unregister_event(listener)
+		local audio = ""
+		if fAudio == "" then
+			load_files(title, destination, audio, false)
+		else
+			if utils.file_info(destination .. ".mka") then
+				audio = 'audio-file="' .. destination .. '.mka",'
 				load_files(title, destination, audio, false)
 			else
-				if utils.file_info(destination .. ".mka") then
-					audio = 'audio-file="' .. destination .. '.mka",'
-					load_files(title, destination, audio, false)
-				else
-					print("---expected mka but could not find it, waiting for 2 seconds---")
-					mp.add_timeout(2, function()
-						load_files(title, destination, audio, true)
-					end)
-				end
+				print("---expected mka but could not find it, waiting for 2 seconds---")
+				mp.add_timeout(2, function()
+					load_files(title, destination, audio, true)
+				end)
 			end
 		end
 	end
@@ -199,7 +195,14 @@ local AudioDownloadHandle = {}
 local VideoDownloadHandle = {}
 local JsonDownloadHandle = {}
 local function download_files(success, result, error)
-
+	
+	json = utils.parse_json(result.stdout)
+	if json.requested_downloads and json.requested_downloads[1].filename then
+		destination = string.match(json.requested_downloads[1].filename, "(.+)%.[%d%w]+")
+		_, title = utils.split_path(destination)
+		table.insert(filesToDelete, title)
+		print(title)
+	end
 	if result.killed_by_us then
 		print("killed")
 		return
@@ -223,7 +226,6 @@ local function download_files(success, result, error)
 		return
 	end
 
-	json = utils.parse_json(result.stdout)
 	if json._type == "playlist" then
 		print("playlist detected. abort")
 		return
@@ -231,7 +233,6 @@ local function download_files(success, result, error)
 	-- local jio = io.open("t.json", "w")
 	-- jio:write(result.stdout)
 	-- jio:close()
-	title = string.match(json.requested_downloads[1].filename, "(.+)%.[%d%w]+")
 	dvID = json.id or ""
 	fVideo = json.format_id
 	if fVideo:find("+") then
@@ -427,14 +428,23 @@ end
 
 mp.register_event("start-file", DL)
 
-local function deletePreload(hash)
+local function deletePreload(file)
+    
 	if platform_is_windows then
-		-- os.execute('del /Q /F "' .. cachePath .. '\\*' .. hash .. '*" >nul 2>nul')
-		hash = hash:gsub("[']", "%0%0")
-		exec({"powershell.exe", "-Command", "Remove-Item", "-Path", "'" .. cachePath .. "\\*" .. hash .. "*'"})
+		for _,v in pairs({"'","’"}) do
+			file = file:gsub(v, v..v)
+		end
+		local ps_command = "Get-ChildItem -LiteralPath " .. cachePath .. " -Filter '" .. file .. ".*' | Remove-Item -Force"
+		exec({"powershell.exe",
+         "-NoProfile",
+         "-NonInteractive",
+         "-Command",
+         ps_command})
 	else
-		hash = hash:gsub("[' ]", "\\%0")
-		os.execute("rm -f " .. cachePath .. "/*" .. hash .. "* &> /dev/null")
+		for _,v in pairs({"'"," "}) do
+			file = file:gsub(v, "\\"..v)
+		end
+		os.execute("rm -f '" .. cachePath .. pathSep .. file .. "*' &> /dev/null")
 	end
 end
 
@@ -444,14 +454,14 @@ mp.register_event("shutdown", function()
 	mp.abort_async_command(JsonDownloadHandle)
 	local ftd = io.open(cachePath .. "/temp.files", "a")
 	if ftd then
-		for k, v in pairs(filesToDelete) do
+		for _, v in pairs(filesToDelete) do
 			ftd:write(v .. "\n")
 			deletePreload(v)
 		end
 		ftd:close()
 	end
-	deletePreload(".info.json")
 end)
+
 local ftd = io.open(cachePath .. "/temp.files", "r")
 while ftd ~= nil do
 	local line = ftd:read()
@@ -459,10 +469,10 @@ while ftd ~= nil do
 		ftd:close()
 		io.open(cachePath .. "/temp.files", "w"):close()
 		break
+	else
+		deletePreload(line)
 	end
-	deletePreload(line)
 end
-deletePreload(".info.json")
 
 mp.add_key_binding("Y", "toggle_ytdl_preload", function()
 	enabled = not enabled

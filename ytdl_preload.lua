@@ -197,11 +197,10 @@ local JsonDownloadHandle = {}
 local function download_files(success, result, error)
 	
 	json = utils.parse_json(result.stdout)
-	if json.requested_downloads and json.requested_downloads[1].filename then
+	if json and json.requested_downloads and json.requested_downloads[1].filename then
 		destination = string.match(json.requested_downloads[1].filename, "(.+)%.[%d%w]+")
 		_, title = utils.split_path(destination)
 		table.insert(filesToDelete, title)
-		print(title)
 	end
 	if result.killed_by_us then
 		print("killed")

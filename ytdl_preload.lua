@@ -195,20 +195,18 @@ local AudioDownloadHandle = {}
 local VideoDownloadHandle = {}
 local JsonDownloadHandle = {}
 local function download_files(success, result, error)
-	
+	if result.killed_by_us then
+		print("killed")
+		return
+	end
 	json = utils.parse_json(result.stdout)
 	if json and json.requested_downloads and json.requested_downloads[1].filename then
 		destination = string.match(json.requested_downloads[1].filename, "(.+)%.[%d%w]+")
 		_, title = utils.split_path(destination)
 		table.insert(filesToDelete, title)
 	end
-	if result.killed_by_us then
-		print("killed")
-		return
-	end
 	if result.stderr ~= "" and result.stderr:find("ERROR") then
 		print(result.stderr)
-
 		local keep = opts.keep_faults
 		if toggleFaults ~= "" then
 			keep = toggleFaults

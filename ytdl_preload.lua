@@ -307,6 +307,9 @@ local function DL()
 		mp.enable_messages("info")
 		local args = {
 			ytdl,
+			"--print-to-file",
+			"playlist:%(filename)s",
+			cachePath .. pathSep .. "temp.files",
 			"--dump-single-json",
 			"--write-info-json",
 			"--write-subs",
@@ -426,7 +429,10 @@ end
 mp.register_event("start-file", DL)
 
 local function deletePreload(file)
-    
+	if file:find("%.NA%s?$") then
+		file = file:gsub("%.NA%s?$","")
+		_,file = utils.split_path(file)
+	end
 	if platform_is_windows then
 		for _,v in pairs({"'","’"}) do
 			file = file:gsub(v, v..v)
@@ -441,7 +447,7 @@ local function deletePreload(file)
 		for _,v in pairs({"'"," "}) do
 			file = file:gsub(v, "\\"..v)
 		end
-		os.execute("rm -f '" .. cachePath .. pathSep .. file .. "*' &> /dev/null")
+		os.execute("rm -f " .. cachePath .. pathSep .. file .. "* &> /dev/null")
 	end
 end
 
@@ -449,7 +455,16 @@ mp.register_event("shutdown", function()
 	mp.abort_async_command(AudioDownloadHandle)
 	mp.abort_async_command(VideoDownloadHandle)
 	mp.abort_async_command(JsonDownloadHandle)
-	local ftd = io.open(cachePath .. "/temp.files", "a")
+	local ftd = io.open(cachePath .. "/temp.files", "r")
+	if ftd then
+		for line in ftd:lines() do
+			if line:find("%.NA%s?$") then
+				deletePreload(line)
+			end
+		end
+		ftd:close()
+	end
+	ftd = io.open(cachePath .. "/temp.files", "a")
 	if ftd then
 		for _, v in pairs(filesToDelete) do
 			ftd:write(v .. "\n")
@@ -460,15 +475,12 @@ mp.register_event("shutdown", function()
 end)
 
 local ftd = io.open(cachePath .. "/temp.files", "r")
-while ftd ~= nil do
-	local line = ftd:read()
-	if line == nil or line == "" then
-		ftd:close()
-		io.open(cachePath .. "/temp.files", "w"):close()
-		break
-	else
+if ftd then
+	for line in ftd:lines() do
 		deletePreload(line)
 	end
+	ftd:close()
+	io.open(cachePath .. "/temp.files", "w"):close()
 end
 
 mp.add_key_binding("Y", "toggle_ytdl_preload", function()

@@ -373,7 +373,7 @@ local o = {
 	force_all_formats = true,
 	ytdl_path = "",
 }
-local paths_to_search = { "yt-dlp", "yt-dlp_x86", "youtube-dl" }
+local paths_to_search = { "yt-dlp", "yt-dlp_x86" }
 
 options.read_options(o, "ytdl_hook")
 

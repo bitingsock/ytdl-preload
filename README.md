@@ -1,5 +1,7 @@
 mpv script to precache the next entry in your playlist if it is a network source by downloading it to a temp file ahead of time. It will delete the directory on exit.
 --
+No longer supports `youtube-dl`, needs a fairly recent build of `yt-dlp`
+--
 control with auto profiles:
 ```
 [ytdl_pl]

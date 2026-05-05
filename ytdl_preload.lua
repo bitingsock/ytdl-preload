@@ -46,18 +46,10 @@ local restrictFilenames = "--no-windows-filenames"
 local chapter_list = {}
 local json = ""
 local filesToDelete = {}
-
-local function useNewLoadfile()
-	for _, c in pairs(mp.get_property_native("command-list")) do
-		if c["name"] == "loadfile" then
-			for _, a in pairs(c["args"]) do
-				if a["name"] == "index" then
-					return true
-				end
-			end
-		end
-	end
-end
+local AudioDownloadHandle = {}
+local VideoDownloadHandle = {}
+local JsonDownloadHandle = {}
+local skipInitial = false
 
 --from ytdl_hook
 local function time_to_secs(time_string)
@@ -116,23 +108,36 @@ local function load_files(dtitle, destination, audio, wait)
 			print("---could not find mka after wait, audio may be missing---")
 		end
 	end
-	local destMKV = destination .. ".mkv"
-	local loadOpts = audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID
-	if useNewLoadfile() then
-		local commandTable = { name = "loadfile" , url = destMKV, flags = "append", index = -1, options = loadOpts}
-		mp.command_native(commandTable)
-	else
-		mp.commandv(
-			"loadfile",
-			destination .. ".mkv",
-			"append",
-			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no'
-		)
-	end
-	mp.commandv("playlist_move", mp.get_property("playlist-count") - 1, nextIndex)
+	mp.command_native({ name = "loadfile" ,
+		url = destination .. ".mkv",
+		flags = "insert-at",
+		index = nextIndex,
+		options = audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID})
 	mp.commandv("playlist_remove", nextIndex + 1)
 	caught = true
 	title = ""
+end
+
+local nextFile = ""
+local function errorHandler(event)
+	local err = false
+	if event.prefix == mp.get_script_name() then
+		if string.find(event.text, "fragment not found") then
+			print("error while downloading, reverting to url")
+			err = true
+		end
+		if err == true then
+			skipInitial = false
+			mp.abort_async_command(AudioDownloadHandle)
+			mp.abort_async_command(VideoDownloadHandle)
+			mp.command_native({ name = "loadfile" ,
+				url = nextFile,
+				flags = "insert-at",
+				index = nextIndex})
+			mp.commandv("playlist_remove", nextIndex + 1)
+			mp.unregister_event(errorHandler)
+		end
+	end
 end
 
 local function listener(event)
@@ -152,6 +157,7 @@ local function listener(event)
 				end)
 			end
 		end
+		mp.register_event("log-message", errorHandler)
 	end
 end
 
@@ -191,9 +197,6 @@ local function addOPTS(old, fdrop)
 	return old
 end
 
-local AudioDownloadHandle = {}
-local VideoDownloadHandle = {}
-local JsonDownloadHandle = {}
 local function download_files(success, result, error)
 	if result.killed_by_us then
 		print("killed")
@@ -301,7 +304,7 @@ local function DL()
 	end
 
 	nextIndex = index + 1
-	local nextFile = mp.get_property("playlist/" .. nextIndex .. "/filename")
+	nextFile = mp.get_property("playlist/" .. nextIndex .. "/filename")
 	if nextFile and caught then
 		caught = false
 		mp.enable_messages("info")
@@ -351,12 +354,12 @@ mp.add_hook("on_unload", 50, function()
 	-- mp.abort_async_command(VideoDownloadHandle)
 	mp.abort_async_command(JsonDownloadHandle)
 	mp.unregister_event(listener)
+	mp.unregister_event(errorHandler)
 	caught = true
 end)
 
-local skipInitial
 mp.observe_property("playlist-count", "number", function()
-	if skipInitial then
+	if skipInitial == true then
 		DL()
 	else
 		skipInitial = true

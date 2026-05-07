@@ -14,7 +14,7 @@ local pathSep = package.config:sub(1, 1)
 local platform_is_windows = (pathSep == "\\")
 local nextIndex
 local caught = true
-local ytdl = "yt-dlp"
+local ytdl = ""
 local utils = require("mp.utils")
 local options = require("mp.options")
 local opts = {
@@ -65,6 +65,7 @@ local function time_to_secs(time_string)
 	end
 	return ret
 end
+
 local function extract_chapters(data, video_length)
 	local ret = {}
 	for line in data:gmatch("[^\r\n]+") do
@@ -78,6 +79,7 @@ local function extract_chapters(data, video_length)
 	end)
 	return ret
 end
+
 local function chapters()
 	if json.chapters then
 		for i = 1, #json.chapters do
@@ -92,6 +94,63 @@ local function chapters()
 		chapter_list = extract_chapters(json.description, json.duration)
 	end
 end
+
+local o = {
+	exclude = "",
+	try_ytdl_first = false,
+	use_manifests = false,
+	all_formats = false,
+	force_all_formats = true,
+	ytdl_path = "",
+}
+local paths_to_search = { "yt-dlp", "yt-dlp_x86" }
+
+options.read_options(o, "ytdl_hook")
+
+local separator = platform_is_windows and ";" or ":"
+if o.ytdl_path:match("[^" .. separator .. "]") then
+	paths_to_search = {}
+	for path in o.ytdl_path:gmatch("[^" .. separator .. "]+") do
+		table.insert(paths_to_search, path)
+	end
+end
+
+local function exec(args)
+	local ret = mp.command_native({
+		name = "subprocess",
+		args = args,
+		capture_stdout = true,
+		capture_stderr = true,
+		playback_only = false
+	})
+	return ret.status, ret.stdout, ret, ret.killed_by_us
+end
+local function findYTDLP()
+	local msg = require("mp.msg")
+	local command = {}
+	for _, path in pairs(paths_to_search) do
+		-- search for youtube-dl in mpv's config dir
+		local exesuf = platform_is_windows and ".exe" or ""
+		local ytdl_cmd = mp.find_config_file(path .. exesuf)
+		if ytdl_cmd then
+			msg.verbose("Found youtube-dl at: " .. ytdl_cmd)
+			ytdl = ytdl_cmd
+			break
+		else
+			msg.verbose("No youtube-dl found with path " .. path .. exesuf .. " in config directories")
+			--search in PATH
+			command[1] = path
+			es, json, result, aborted = exec(command)
+			if result.error_string == "init" then
+				msg.verbose("youtube-dl with path " .. path .. exesuf .. " not found in PATH or not enough permissions")
+			else
+				msg.verbose("Found youtube-dl with path " .. path .. exesuf .. " in PATH")
+				ytdl = path
+				break
+			end
+		end
+	end
+end
 --end ytdl_hook
 
 local title = ""
@@ -99,17 +158,20 @@ local destination = ""
 local fVideo = ""
 local fAudio = ""
 local dvID = ""
-local function load_files(dtitle, destination, audio, wait)
-	if wait then
-		if utils.file_info(destination .. ".mka") then
-			print("---wait success: found mka---")
-			audio = 'audio-file="' .. destination .. '.mka",'
-		else
-			print("---could not find mka after wait, audio may be missing---")
-		end
+local waits = 0
+local waiter
+
+local function load_files(dtitle, fdestination)
+	local audio = ""
+	if waits == -1 then
+		audio = 'audio-file="' .. fdestination .. '.mka",'
+	elseif waits == 8 then
+		print("---could not find mka after wait, audio may be missing---")
 	end
+	waiter:kill()
+	waits = 0
 	mp.command_native({ name = "loadfile" ,
-		url = destination .. ".mkv",
+		url = fdestination .. ".mkv",
 		flags = "insert-at",
 		index = nextIndex,
 		options = audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID})
@@ -140,23 +202,21 @@ local function errorHandler(event)
 	end
 end
 
+
+waiter = mp.add_periodic_timer(0.25, function ()
+	waits = waits + 1
+	if utils.file_info(destination .. ".mka") then
+		waits = -1
+	end
+	if waits == -1 or waits == 8 then
+		load_files(title, destination)
+	end
+end, true)
+
 local function listener(event)
 	if not caught and event.prefix == mp.get_script_name() and string.find(event.text, "%[download%] Destination: ") and string.find(destination, string.gsub(cachePath, "~/", "")) then
 		mp.unregister_event(listener)
-		local audio = ""
-		if fAudio == "" then
-			load_files(title, destination, audio, false)
-		else
-			if utils.file_info(destination .. ".mka") then
-				audio = 'audio-file="' .. destination .. '.mka",'
-				load_files(title, destination, audio, false)
-			else
-				print("---expected mka but could not find it, waiting for 2 seconds---")
-				mp.add_timeout(2, function()
-					load_files(title, destination, audio, true)
-				end)
-			end
-		end
+		waiter:resume()
 		mp.register_event("log-message", errorHandler)
 	end
 end
@@ -167,6 +227,7 @@ mp.add_hook("on_preloaded", 10, function()
 		chapters()
 		if next(chapter_list) ~= nil then
 			mp.set_property_native("chapter-list", chapter_list)
+			mp.set_property_native("user-data/stucker/chapters", chapter_list)
 			chapter_list = {}
 			json = ""
 		end
@@ -308,6 +369,9 @@ local function DL()
 	if nextFile and caught then
 		caught = false
 		mp.enable_messages("info")
+		if ytdl == "" then
+			findYTDLP()
+		end
 		local args = {
 			ytdl,
 			"--print-to-file",
@@ -365,65 +429,6 @@ mp.observe_property("playlist-count", "number", function()
 		skipInitial = true
 	end
 end)
-
---from ytdl_hook
---local platform_is_windows = (pathSep == "\\")
-local o = {
-	exclude = "",
-	try_ytdl_first = false,
-	use_manifests = false,
-	all_formats = false,
-	force_all_formats = true,
-	ytdl_path = "",
-}
-local paths_to_search = { "yt-dlp", "yt-dlp_x86" }
-
-options.read_options(o, "ytdl_hook")
-
-local separator = platform_is_windows and ";" or ":"
-if o.ytdl_path:match("[^" .. separator .. "]") then
-	paths_to_search = {}
-	for path in o.ytdl_path:gmatch("[^" .. separator .. "]+") do
-		table.insert(paths_to_search, path)
-	end
-end
-
-local function exec(args)
-	local ret = mp.command_native({
-		name = "subprocess",
-		args = args,
-		capture_stdout = true,
-		capture_stderr = true,
-		playback_only = false
-	})
-	return ret.status, ret.stdout, ret, ret.killed_by_us
-end
-
-local msg = require("mp.msg")
-local command = {}
-for _, path in pairs(paths_to_search) do
-	-- search for youtube-dl in mpv's config dir
-	local exesuf = platform_is_windows and ".exe" or ""
-	local ytdl_cmd = mp.find_config_file(path .. exesuf)
-	if ytdl_cmd then
-		msg.verbose("Found youtube-dl at: " .. ytdl_cmd)
-		ytdl = ytdl_cmd
-		break
-	else
-		msg.verbose("No youtube-dl found with path " .. path .. exesuf .. " in config directories")
-		--search in PATH
-		command[1] = path
-		es, json, result, aborted = exec(command)
-		if result.error_string == "init" then
-			msg.verbose("youtube-dl with path " .. path .. exesuf .. " not found in PATH or not enough permissions")
-		else
-			msg.verbose("Found youtube-dl with path " .. path .. exesuf .. " in PATH")
-			ytdl = path
-			break
-		end
-	end
-end
---end ytdl_hook
 
 if platform_is_windows then
 	restrictFilenames = "--windows-filenames"

@@ -145,7 +145,7 @@ local function findYTDLP()
 		else
 			msg.verbose("No youtube-dl found with path " .. path .. exesuf .. " in config directories")
 			--search in PATH
-			command[1] = path
+			command = {path, "--version"}
 			es, json, result, aborted = exec(command)
 			if result.error_string == "init" then
 				msg.verbose("youtube-dl with path " .. path .. exesuf .. " not found in PATH or not enough permissions")

@@ -190,7 +190,7 @@ local nextFile = ""
 local function errorHandler(event)
 	local err = false
 	if event.prefix == mp.get_script_name() then
-		if string.find(event.text, "fragment not found") or string.find(event.text, "Unable to download video") then
+		if string.find(event.text, "fragment not found") or string.find(event.text, "Unable to download video") or string.find(event.text, "aria2c exited") then
 			print("error while downloading, reverting to url")
 			err = true
 		end

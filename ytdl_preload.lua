@@ -44,7 +44,7 @@ local cachePath = opts.temp
 
 local restrictFilenames = "--no-windows-filenames"
 local chapter_list = {}
-local json = ""
+local json = {}
 local filesToDelete = {}
 local AudioDownloadHandle = {}
 local VideoDownloadHandle = {}
@@ -127,6 +127,12 @@ local function exec(args)
 end
 local function findYTDLP()
 	local msg = require("mp.msg")
+	local hookPath = mp.get_property_native("user-data/mpv/ytdl/path")
+	if hookPath then
+		ytdl = hookPath
+		msg.verbose("Found youtube-dl at user-data/mpv/ytdl/path: " .. ytdl)
+		return
+	end
 	local command = {}
 	for _, path in pairs(paths_to_search) do
 		-- search for youtube-dl in mpv's config dir
@@ -229,7 +235,7 @@ mp.add_hook("on_preloaded", 10, function()
 			mp.set_property_native("chapter-list", chapter_list)
 			mp.set_property_native("user-data/stucker/chapters", chapter_list)
 			chapter_list = {}
-			json = ""
+			json = {}
 		end
 	end
 end)

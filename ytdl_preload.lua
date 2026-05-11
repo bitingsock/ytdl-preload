@@ -125,6 +125,7 @@ local function exec(args)
 	})
 	return ret.status, ret.stdout, ret, ret.killed_by_us
 end
+
 local function findYTDLP()
 	local msg = require("mp.msg")
 	local hookPath = mp.get_property_native("user-data/mpv/ytdl/path")
@@ -136,7 +137,7 @@ local function findYTDLP()
 	local command = {}
 	for _, path in pairs(paths_to_search) do
 		-- search for youtube-dl in mpv's config dir
-		local exesuf = platform_is_windows and ".exe" or ""
+		local exesuf = platform_is_windows and not path:lower():match("%.exe$") and ".exe" or ""
 		local ytdl_cmd = mp.find_config_file(path .. exesuf)
 		if ytdl_cmd then
 			msg.verbose("Found youtube-dl at: " .. ytdl_cmd)

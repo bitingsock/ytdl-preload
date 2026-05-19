@@ -196,6 +196,7 @@ local function errorHandler(event)
 			err = true
 		end
 		if err == true then
+			waiter:kill()
 			skipInitial = false
 			mp.abort_async_command(AudioDownloadHandle)
 			mp.abort_async_command(VideoDownloadHandle)
@@ -222,8 +223,13 @@ end, true)
 
 local function listener(event)
 	if not caught and event.prefix == mp.get_script_name() and string.find(event.text, "%[download%] Destination: ") and string.find(destination, string.gsub(cachePath, "~/", "")) then
+
 		mp.unregister_event(listener)
-		waiter:resume()
+		if fAudio == "" then
+			load_files(title, destination)
+		else
+			waiter:resume()
+		end
 		mp.register_event("log-message", errorHandler)
 	end
 end
@@ -277,7 +283,10 @@ local function download_files(success, result, error)
 		table.insert(filesToDelete, title)
 	end
 	if result.stderr ~= "" and result.stderr:find("ERROR") then
-		print(result.stderr)
+		print((result.stderr:gsub("%s+$", "")))
+		if result.stderr:find("Unsupported url scheme") then
+			return
+		end
 		local keep = opts.keep_faults
 		if toggleFaults ~= "" then
 			keep = toggleFaults
@@ -295,12 +304,14 @@ local function download_files(success, result, error)
 	end
 
 	if json._type == "playlist" then
-		print("playlist detected. abort")
+		print("playlist detected. abort preload")
 		return
 	end
-	-- local jio = io.open("t.json", "w")
-	-- jio:write(result.stdout)
-	-- jio:close()
+	if json.protocol == "m3u8_native" and json.is_live == true then
+		print("live m3u8 detected. abort preload")
+		return
+	end
+
 	dvID = json.id or ""
 	fVideo = json.format_id
 	if fVideo:find("+") then
@@ -316,7 +327,7 @@ local function download_files(success, result, error)
 			"--no-playlist",
 			"--no-part",
 			"-o",
-			cachePath .. pathSep .. "%(title)s.mka",
+			cachePath .. pathSep .. title .. ".mka",
 			"--load-info-json",
 			json.requested_downloads[1].infojson_filename,
 		}
@@ -330,6 +341,7 @@ local function download_files(success, result, error)
 
 	local args = {
 		ytdl,
+		-- "-v",
 		"--fixup",
 		"never",
 		"--no-continue",
@@ -339,7 +351,7 @@ local function download_files(success, result, error)
 		"--no-playlist",
 		"--no-part",
 		"-o",
-		cachePath .. pathSep .. "%(title)s.mkv",
+		cachePath .. pathSep .. title .. ".mkv",
 		"--load-info-json",
 		json.requested_downloads[1].infojson_filename,
 	}
@@ -500,7 +512,13 @@ end
 
 mp.add_key_binding("Y", "toggle_ytdl_preload", function()
 	enabled = not enabled
-	if enabled == true then DL() end
+	if enabled == true then
+		DL()
+	-- else
+	-- 	mp.abort_async_command(JsonDownloadHandle)
+	-- 	mp.abort_async_command(AudioDownloadHandle)
+	-- 	mp.abort_async_command(VideoDownloadHandle)
+	end
 	mp.osd_message("enable_ytdl_preload="..tostring(enabled))
 end)
 

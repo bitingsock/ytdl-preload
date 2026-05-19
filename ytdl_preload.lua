@@ -14,7 +14,7 @@ local pathSep = package.config:sub(1, 1)
 local platform_is_windows = (pathSep == "\\")
 local nextIndex
 local caught = true
-local ytdl = "yt-dlp"
+local ytdl = ""
 local utils = require("mp.utils")
 local options = require("mp.options")
 local opts = {
@@ -44,20 +44,12 @@ local cachePath = opts.temp
 
 local restrictFilenames = "--no-windows-filenames"
 local chapter_list = {}
-local json = ""
+local json = {}
 local filesToDelete = {}
-
-local function useNewLoadfile()
-	for _, c in pairs(mp.get_property_native("command-list")) do
-		if c["name"] == "loadfile" then
-			for _, a in pairs(c["args"]) do
-				if a["name"] == "index" then
-					return true
-				end
-			end
-		end
-	end
-end
+local AudioDownloadHandle = {}
+local VideoDownloadHandle = {}
+local JsonDownloadHandle = {}
+local skipInitial = false
 
 --from ytdl_hook
 local function time_to_secs(time_string)
@@ -73,6 +65,7 @@ local function time_to_secs(time_string)
 	end
 	return ret
 end
+
 local function extract_chapters(data, video_length)
 	local ret = {}
 	for line in data:gmatch("[^\r\n]+") do
@@ -86,6 +79,7 @@ local function extract_chapters(data, video_length)
 	end)
 	return ret
 end
+
 local function chapters()
 	if json.chapters then
 		for i = 1, #json.chapters do
@@ -100,6 +94,70 @@ local function chapters()
 		chapter_list = extract_chapters(json.description, json.duration)
 	end
 end
+
+local o = {
+	exclude = "",
+	try_ytdl_first = false,
+	use_manifests = false,
+	all_formats = false,
+	force_all_formats = true,
+	ytdl_path = "",
+}
+local paths_to_search = { "yt-dlp", "yt-dlp_x86" }
+
+options.read_options(o, "ytdl_hook")
+
+local separator = platform_is_windows and ";" or ":"
+if o.ytdl_path:match("[^" .. separator .. "]") then
+	paths_to_search = {}
+	for path in o.ytdl_path:gmatch("[^" .. separator .. "]+") do
+		table.insert(paths_to_search, path)
+	end
+end
+
+local function exec(args)
+	local ret = mp.command_native({
+		name = "subprocess",
+		args = args,
+		capture_stdout = true,
+		capture_stderr = true,
+		playback_only = false
+	})
+	return ret.status, ret.stdout, ret, ret.killed_by_us
+end
+
+local function findYTDLP()
+	local msg = require("mp.msg")
+	local hookPath = mp.get_property_native("user-data/mpv/ytdl/path")
+	if hookPath then
+		ytdl = hookPath
+		msg.verbose("Found youtube-dl at user-data/mpv/ytdl/path: " .. ytdl)
+		return
+	end
+	local command = {}
+	for _, path in pairs(paths_to_search) do
+		-- search for youtube-dl in mpv's config dir
+		local exesuf = platform_is_windows and not path:lower():match("%.exe$") and ".exe" or ""
+		local ytdl_cmd = mp.find_config_file(path .. exesuf)
+		if ytdl_cmd then
+			msg.verbose("Found youtube-dl at: " .. ytdl_cmd)
+			ytdl = ytdl_cmd
+			break
+		else
+			msg.verbose("No youtube-dl found with path " .. path .. exesuf .. " in config directories")
+			--search in PATH
+			command = {path, "--version"}
+			es, json, result, aborted = exec(command)
+			if result.error_string == "init" then
+				msg.verbose("youtube-dl with path " .. path .. exesuf .. " not found in PATH or not enough permissions")
+			else
+				msg.verbose("Found youtube-dl with path " .. path .. exesuf .. " in PATH")
+				ytdl = path
+				break
+			end
+		end
+	end
+end
 --end ytdl_hook
 
 local title = ""
@@ -107,51 +165,72 @@ local destination = ""
 local fVideo = ""
 local fAudio = ""
 local dvID = ""
-local function load_files(dtitle, destination, audio, wait)
-	if wait then
-		if utils.file_info(destination .. ".mka") then
-			print("---wait success: found mka---")
-			audio = 'audio-file="' .. destination .. '.mka",'
-		else
-			print("---could not find mka after wait, audio may be missing---")
-		end
+local waits = 0
+local waiter
+
+local function load_files(dtitle, fdestination)
+	local audio = ""
+	if waits == -1 then
+		audio = 'audio-file="' .. fdestination .. '.mka",'
+	elseif waits == 8 then
+		print("---could not find mka after wait, audio may be missing---")
 	end
-	local destMKV = destination .. ".mkv"
-	local loadOpts = audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID
-	if useNewLoadfile() then
-		local commandTable = { name = "loadfile" , url = destMKV, flags = "append", index = -1, options = loadOpts}
-		mp.command_native(commandTable)
-	else
-		mp.commandv(
-			"loadfile",
-			destination .. ".mkv",
-			"append",
-			audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no'
-		)
-	end
-	mp.commandv("playlist_move", mp.get_property("playlist-count") - 1, nextIndex)
+	waiter:kill()
+	waits = 0
+	mp.command_native({ name = "loadfile" ,
+		url = fdestination .. ".mkv",
+		flags = "insert-at",
+		index = nextIndex,
+		options = audio .. 'force-media-title="' .. dtitle .. '",demuxer-max-back-bytes=1MiB,demuxer-max-bytes=3MiB,ytdl=no,script-opt=ytdl_preload-id=' .. dvID})
 	mp.commandv("playlist_remove", nextIndex + 1)
 	caught = true
 	title = ""
 end
 
+local nextFile = ""
+local function errorHandler(event)
+	local err = false
+	if event.prefix == mp.get_script_name() then
+		if string.find(event.text, "fragment not found") or string.find(event.text, "Unable to download video") or string.find(event.text, "aria2c exited") then
+			print("error while downloading, reverting to url")
+			err = true
+		end
+		if err == true then
+			waiter:kill()
+			skipInitial = false
+			mp.abort_async_command(AudioDownloadHandle)
+			mp.abort_async_command(VideoDownloadHandle)
+			mp.command_native({ name = "loadfile" ,
+				url = nextFile,
+				flags = "insert-at",
+				index = nextIndex})
+			mp.commandv("playlist_remove", nextIndex + 1)
+			mp.unregister_event(errorHandler)
+		end
+	end
+end
+
+
+waiter = mp.add_periodic_timer(0.25, function ()
+	waits = waits + 1
+	if utils.file_info(destination .. ".mka") then
+		waits = -1
+	end
+	if waits == -1 or waits == 8 then
+		load_files(title, destination)
+	end
+end, true)
+
 local function listener(event)
 	if not caught and event.prefix == mp.get_script_name() and string.find(event.text, "%[download%] Destination: ") and string.find(destination, string.gsub(cachePath, "~/", "")) then
+
 		mp.unregister_event(listener)
-		local audio = ""
 		if fAudio == "" then
-			load_files(title, destination, audio, false)
+			load_files(title, destination)
 		else
-			if utils.file_info(destination .. ".mka") then
-				audio = 'audio-file="' .. destination .. '.mka",'
-				load_files(title, destination, audio, false)
-			else
-				print("---expected mka but could not find it, waiting for 2 seconds---")
-				mp.add_timeout(2, function()
-					load_files(title, destination, audio, true)
-				end)
-			end
+			waiter:resume()
 		end
+		mp.register_event("log-message", errorHandler)
 	end
 end
 
@@ -161,8 +240,9 @@ mp.add_hook("on_preloaded", 10, function()
 		chapters()
 		if next(chapter_list) ~= nil then
 			mp.set_property_native("chapter-list", chapter_list)
+			mp.set_property_native("user-data/stucker/chapters", chapter_list)
 			chapter_list = {}
-			json = ""
+			json = {}
 		end
 	end
 end)
@@ -191,9 +271,6 @@ local function addOPTS(old, fdrop)
 	return old
 end
 
-local AudioDownloadHandle = {}
-local VideoDownloadHandle = {}
-local JsonDownloadHandle = {}
 local function download_files(success, result, error)
 	if result.killed_by_us then
 		print("killed")
@@ -206,7 +283,10 @@ local function download_files(success, result, error)
 		table.insert(filesToDelete, title)
 	end
 	if result.stderr ~= "" and result.stderr:find("ERROR") then
-		print(result.stderr)
+		print((result.stderr:gsub("%s+$", "")))
+		if result.stderr:find("Unsupported url scheme") then
+			return
+		end
 		local keep = opts.keep_faults
 		if toggleFaults ~= "" then
 			keep = toggleFaults
@@ -224,12 +304,14 @@ local function download_files(success, result, error)
 	end
 
 	if json._type == "playlist" then
-		print("playlist detected. abort")
+		print("playlist detected. abort preload")
 		return
 	end
-	-- local jio = io.open("t.json", "w")
-	-- jio:write(result.stdout)
-	-- jio:close()
+	if json.protocol == "m3u8_native" and json.is_live == true then
+		print("live m3u8 detected. abort preload")
+		return
+	end
+
 	dvID = json.id or ""
 	fVideo = json.format_id
 	if fVideo:find("+") then
@@ -245,7 +327,7 @@ local function download_files(success, result, error)
 			"--no-playlist",
 			"--no-part",
 			"-o",
-			cachePath .. pathSep .. "%(title)s.mka",
+			cachePath .. pathSep .. title .. ".mka",
 			"--load-info-json",
 			json.requested_downloads[1].infojson_filename,
 		}
@@ -259,6 +341,7 @@ local function download_files(success, result, error)
 
 	local args = {
 		ytdl,
+		-- "-v",
 		"--fixup",
 		"never",
 		"--no-continue",
@@ -268,7 +351,7 @@ local function download_files(success, result, error)
 		"--no-playlist",
 		"--no-part",
 		"-o",
-		cachePath .. pathSep .. "%(title)s.mkv",
+		cachePath .. pathSep .. title .. ".mkv",
 		"--load-info-json",
 		json.requested_downloads[1].infojson_filename,
 	}
@@ -301,10 +384,13 @@ local function DL()
 	end
 
 	nextIndex = index + 1
-	local nextFile = mp.get_property("playlist/" .. nextIndex .. "/filename")
+	nextFile = mp.get_property("playlist/" .. nextIndex .. "/filename")
 	if nextFile and caught then
 		caught = false
 		mp.enable_messages("info")
+		if ytdl == "" then
+			findYTDLP()
+		end
 		local args = {
 			ytdl,
 			"--print-to-file",
@@ -351,76 +437,17 @@ mp.add_hook("on_unload", 50, function()
 	-- mp.abort_async_command(VideoDownloadHandle)
 	mp.abort_async_command(JsonDownloadHandle)
 	mp.unregister_event(listener)
+	mp.unregister_event(errorHandler)
 	caught = true
 end)
 
-local skipInitial
 mp.observe_property("playlist-count", "number", function()
-	if skipInitial then
+	if skipInitial == true then
 		DL()
 	else
 		skipInitial = true
 	end
 end)
-
---from ytdl_hook
---local platform_is_windows = (pathSep == "\\")
-local o = {
-	exclude = "",
-	try_ytdl_first = false,
-	use_manifests = false,
-	all_formats = false,
-	force_all_formats = true,
-	ytdl_path = "",
-}
-local paths_to_search = { "yt-dlp", "yt-dlp_x86" }
-
-options.read_options(o, "ytdl_hook")
-
-local separator = platform_is_windows and ";" or ":"
-if o.ytdl_path:match("[^" .. separator .. "]") then
-	paths_to_search = {}
-	for path in o.ytdl_path:gmatch("[^" .. separator .. "]+") do
-		table.insert(paths_to_search, path)
-	end
-end
-
-local function exec(args)
-	local ret = mp.command_native({
-		name = "subprocess",
-		args = args,
-		capture_stdout = true,
-		capture_stderr = true,
-		playback_only = false
-	})
-	return ret.status, ret.stdout, ret, ret.killed_by_us
-end
-
-local msg = require("mp.msg")
-local command = {}
-for _, path in pairs(paths_to_search) do
-	-- search for youtube-dl in mpv's config dir
-	local exesuf = platform_is_windows and ".exe" or ""
-	local ytdl_cmd = mp.find_config_file(path .. exesuf)
-	if ytdl_cmd then
-		msg.verbose("Found youtube-dl at: " .. ytdl_cmd)
-		ytdl = ytdl_cmd
-		break
-	else
-		msg.verbose("No youtube-dl found with path " .. path .. exesuf .. " in config directories")
-		--search in PATH
-		command[1] = path
-		es, json, result, aborted = exec(command)
-		if result.error_string == "init" then
-			msg.verbose("youtube-dl with path " .. path .. exesuf .. " not found in PATH or not enough permissions")
-		else
-			msg.verbose("Found youtube-dl with path " .. path .. exesuf .. " in PATH")
-			ytdl = path
-			break
-		end
-	end
-end
---end ytdl_hook
 
 if platform_is_windows then
 	restrictFilenames = "--windows-filenames"
@@ -485,7 +512,13 @@ end
 
 mp.add_key_binding("Y", "toggle_ytdl_preload", function()
 	enabled = not enabled
-	if enabled == true then DL() end
+	if enabled == true then
+		DL()
+	-- else
+	-- 	mp.abort_async_command(JsonDownloadHandle)
+	-- 	mp.abort_async_command(AudioDownloadHandle)
+	-- 	mp.abort_async_command(VideoDownloadHandle)
+	end
 	mp.osd_message("enable_ytdl_preload="..tostring(enabled))
 end)
 
